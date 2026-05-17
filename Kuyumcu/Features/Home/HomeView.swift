@@ -15,6 +15,7 @@ struct HomeView: View {
     @State private var showCounter     = false
     @State private var showIncomeAlert = false
     @State private var tipIndex        = Int.random(in: 0..<infoTips.count)
+    @State private var rankingTab      = 0
 
     // Kur ticker metni
     private var ratesTickerText: String {
@@ -436,18 +437,31 @@ struct HomeView: View {
             weeklyProfit: gameState.weeklyProfit,
             monthlyRevenue: gameState.monthlyRevenue,
             netWorth: gameState.totalNetWorth,
+            cashBalance: gameState.playerCash,
+            lifestylePoints: gameState.lifestyleScore,
             isPlayer: true
         )
     }
 
     private var rankingCard: some View {
+        let tabs = ["Toplam Servet", "Toplam Nakit", "Yaşam Puanı"]
+
         let allEntries: [LeaderboardEntry] = {
             var list = MockGameData.mockLeaderboard
             list.append(rankingPlayerEntry)
-            return list.sorted { $0.netWorth > $1.netWorth }
+            return list
         }()
-        let playerRank  = (allEntries.firstIndex(where: { $0.isPlayer }) ?? 0) + 1
-        let top10       = Array(allEntries.prefix(10))
+
+        let sorted: [LeaderboardEntry] = {
+            switch rankingTab {
+            case 1:  return allEntries.sorted { $0.cashBalance    > $1.cashBalance }
+            case 2:  return allEntries.sorted { $0.lifestylePoints > $1.lifestylePoints }
+            default: return allEntries.sorted { $0.netWorth       > $1.netWorth }
+            }
+        }()
+
+        let playerRank  = (sorted.firstIndex(where: { $0.isPlayer }) ?? 0) + 1
+        let top10       = Array(sorted.prefix(10))
         let playerInTop = playerRank <= 10
 
         return VStack(alignment: .leading, spacing: 0) {
@@ -455,20 +469,39 @@ struct HomeView: View {
             HStack(spacing: 6) {
                 Image(systemName: "trophy.fill").foregroundColor(.gdlGold).font(.subheadline)
                 Text("Sıralama").font(.gdlHeadline()).foregroundColor(.gdlTextPrimary)
-                Spacer()
-                Text("Toplam Servet")
-                    .font(.gdlCaption())
-                    .foregroundColor(.gdlTextSecondary)
             }
             .padding(.horizontal, 16)
             .padding(.top, 14)
+            .padding(.bottom, 10)
+
+            // Sekme seçici
+            HStack(spacing: 0) {
+                ForEach(tabs.indices, id: \.self) { i in
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) { rankingTab = i }
+                    } label: {
+                        Text(tabs[i])
+                            .font(.system(size: 12, weight: rankingTab == i ? .semibold : .regular))
+                            .foregroundColor(rankingTab == i ? .gdlGold : .gdlTextSecondary)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 7)
+                            .background(rankingTab == i ? Color.gdlGold.opacity(0.12) : Color.clear)
+                    }
+                    if i < tabs.count - 1 {
+                        Rectangle().fill(Color.gdlDivider).frame(width: 1, height: 28)
+                    }
+                }
+            }
+            .background(Color.gdlCardSecondary)
+            .cornerRadius(8)
+            .padding(.horizontal, 16)
             .padding(.bottom, 10)
 
             Divider().background(Color.gdlDivider).padding(.horizontal, 16)
 
             // İlk 10
             ForEach(Array(top10.enumerated()), id: \.element.id) { idx, entry in
-                rankingRow(rank: idx + 1, entry: entry)
+                rankingRow(rank: idx + 1, entry: entry, tab: rankingTab)
                 if idx < top10.count - 1 {
                     Divider().background(Color.gdlDivider).padding(.leading, 58)
                 }
@@ -484,22 +517,30 @@ struct HomeView: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 6)
                 Divider().background(Color.gdlDivider).padding(.leading, 58)
-                rankingRow(rank: playerRank, entry: rankingPlayerEntry)
+                rankingRow(rank: playerRank, entry: rankingPlayerEntry, tab: rankingTab)
             }
         }
         .background(Color.gdlCard)
         .cornerRadius(16)
     }
 
-    private func rankingRow(rank: Int, entry: LeaderboardEntry) -> some View {
-        HStack(spacing: 12) {
+    private func rankingRow(rank: Int, entry: LeaderboardEntry, tab: Int) -> some View {
+        let valueText: String = {
+            switch tab {
+            case 1:  return FormatUtils.tlCompact(entry.cashBalance)
+            case 2:  return "\(entry.lifestylePoints) puan"
+            default: return FormatUtils.tlCompact(entry.netWorth)
+            }
+        }()
+
+        return HStack(spacing: 12) {
             rankBadge(rank)
             Text(entry.isPlayer ? gameState.shopName : entry.playerName)
                 .font(.gdlBody())
                 .foregroundColor(entry.isPlayer ? .gdlGold : .gdlTextPrimary)
                 .lineLimit(1)
             Spacer()
-            Text(FormatUtils.tlCompact(entry.netWorth))
+            Text(valueText)
                 .font(.system(size: 14, weight: .semibold, design: .rounded))
                 .foregroundColor(entry.isPlayer ? .gdlGold : .gdlTextPrimary)
         }

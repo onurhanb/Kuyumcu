@@ -14,16 +14,60 @@ struct CustomerProfile {
 
 enum CustomerLibrary {
 
-    // MARK: - Quantity Range by Location
+    // MARK: - Quantity by Category & Location
 
-    static func quantityRange(for loc: ShopLocationType) -> ClosedRange<Int> {
-        switch loc {
-        case .neighborhood:   return 1...8
-        case .bazaar:         return 2...15
-        case .districtBazaar: return 3...25
-        case .cityCenter:     return 5...35
-        case .mall:           return 8...50
-        case .grandBazaar:    return 10...60
+    private static func quantity(for cat: ProductCategory, loc: ShopLocationType) -> Int {
+        switch cat {
+
+        case .currencyUSD, .currencyEUR:
+            // 100 ile 50.000 arası, 100'ün katları
+            let maxSteps: Int
+            switch loc {
+            case .neighborhood:   maxSteps = 50    // 5.000
+            case .bazaar:         maxSteps = 100   // 10.000
+            case .districtBazaar: maxSteps = 150   // 15.000
+            case .cityCenter:     maxSteps = 250   // 25.000
+            case .mall:           maxSteps = 300   // 30.000
+            case .grandBazaar:    maxSteps = 500   // 50.000
+            }
+            return Int.random(in: 1...maxSteps) * 100
+
+        case .goldGram, .jewelry:
+            // 10gr ile 100gr arası, 5'in katları
+            let maxSteps: Int
+            switch loc {
+            case .neighborhood:   maxSteps = 4    // 20gr
+            case .bazaar:         maxSteps = 6    // 30gr
+            case .districtBazaar: maxSteps = 10   // 50gr
+            case .cityCenter:     maxSteps = 15   // 75gr
+            case .mall:           maxSteps = 15   // 75gr
+            case .grandBazaar:    maxSteps = 20   // 100gr
+            }
+            return Int.random(in: 2...maxSteps) * 5
+
+        case .goldQuarter, .goldHalf:
+            // 5 ile 100 arası, 5'in katları
+            let maxSteps: Int
+            switch loc {
+            case .neighborhood:   maxSteps = 4    // 20
+            case .bazaar:         maxSteps = 6    // 30
+            case .districtBazaar: maxSteps = 10   // 50
+            case .cityCenter:     maxSteps = 15   // 75
+            case .mall:           maxSteps = 15   // 75
+            case .grandBazaar:    maxSteps = 20   // 100
+            }
+            return Int.random(in: 1...maxSteps) * 5
+
+        case .goldFull:
+            // 1 ile 50 arası, 1'in katları
+            switch loc {
+            case .neighborhood:   return Int.random(in: 1...5)
+            case .bazaar:         return Int.random(in: 1...10)
+            case .districtBazaar: return Int.random(in: 1...15)
+            case .cityCenter:     return Int.random(in: 2...25)
+            case .mall:           return Int.random(in: 2...25)
+            case .grandBazaar:    return Int.random(in: 5...50)
+            }
         }
     }
 
@@ -367,10 +411,9 @@ enum CustomerLibrary {
             return others.randomElement() ?? .goldHalf
         }()
 
-        // 5. Miktarlar
-        let range = quantityRange(for: locationType)
-        let qty1  = Int.random(in: range)
-        let qty2  = Int.random(in: range)
+        // 5. Miktarlar (kategoriye ve lokasyona göre)
+        let qty1 = quantity(for: cat1, loc: locationType)
+        let qty2 = quantity(for: cat2, loc: locationType)
 
         // 6. İstek öğeleri
         let item1 = RequestItem(productCategory: cat1, quantity: Double(qty1), label: requestLabel(qty: qty1, cat: cat1))

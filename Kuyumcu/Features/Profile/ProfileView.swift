@@ -354,6 +354,7 @@ struct ProfileView: View {
     /// "Espresso Makinesi" → "lifestyle_espresso_makinesi"
     private func lifestyleImageKey(_ name: String) -> String {
         let slug = name
+            .replacingOccurrences(of: "İ", with: "i")
             .lowercased()
             .replacingOccurrences(of: "ı", with: "i")
             .replacingOccurrences(of: "ğ", with: "g")

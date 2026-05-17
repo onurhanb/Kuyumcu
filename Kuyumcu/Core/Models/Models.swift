@@ -328,5 +328,7 @@ struct LeaderboardEntry: Identifiable, Codable {
     var weeklyProfit: Double
     var monthlyRevenue: Double
     var netWorth: Double
+    var cashBalance: Double
+    var lifestylePoints: Int
     var isPlayer: Bool = false
 }

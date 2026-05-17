@@ -35,7 +35,7 @@ struct LifestyleView: View {
                     .cornerRadius(10)
                 }
                 .padding(.horizontal)
-                .padding(.top, 8)
+                .padding(.top, 52)
                 .padding(.bottom, 4)
 
                 // Kategori seçici
@@ -193,6 +193,7 @@ struct LifestyleItemCard: View {
 
     private func lifestyleImageKey(_ name: String) -> String {
         let slug = name
+            .replacingOccurrences(of: "İ", with: "i")
             .lowercased()
             .replacingOccurrences(of: "ı", with: "i")
             .replacingOccurrences(of: "ğ", with: "g")
