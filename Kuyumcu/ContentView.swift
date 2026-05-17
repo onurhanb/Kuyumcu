@@ -1,24 +1,18 @@
 //
 //  ContentView.swift
-//  Kuyumcu
+//  Kuyumcu — Gold Dealer Life
 //
-//  Created by bucak architects on 14.05.2026.
+//  Entry point preview. The real entry is MainTabView via KuyumcuApp.
 //
 
 import SwiftUI
 
 struct ContentView: View {
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
-        }
-        .padding()
+        MainTabView()
     }
 }
 
 #Preview {
-    ContentView()
+    ContentView().environmentObject(GameState())
 }
