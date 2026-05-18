@@ -100,6 +100,16 @@ struct ProfileView: View {
                         .font(.gdlCaption())
                         .foregroundColor(.gdlTextSecondary)
                 }
+                if !gameState.isGuest {
+                    HStack(spacing: 4) {
+                        Image(systemName: "person.badge.key.fill")
+                            .font(.system(size: 11))
+                            .foregroundColor(.gdlTextSecondary.opacity(0.6))
+                        Text("ID: \(gameState.userId.prefix(8).uppercased())")
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundColor(.gdlTextSecondary.opacity(0.6))
+                    }
+                }
             }
 
             Spacer()

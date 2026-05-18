@@ -47,6 +47,7 @@ class GameState: ObservableObject {
     // MARK: - Identity
     @Published var shopName: String = "Misafir"
     @Published var isGuest: Bool = false
+    @Published var userId: String = ""
 
     // MARK: - History
     @Published var yesterdayCash: Double
@@ -79,6 +80,15 @@ class GameState: ObservableObject {
         self.trustScore                  = 50
         self.yesterdayCash               = 0
         self.previousRatePrices          = [:]
+        // Kalıcı kullanıcı kimliği — ilk çalışmada üretilir, UserDefaults'ta saklanır
+        let storedUID = UserDefaults.standard.string(forKey: "gdl_userId") ?? ""
+        if storedUID.isEmpty {
+            let newUID = UUID().uuidString
+            UserDefaults.standard.set(newUID, forKey: "gdl_userId")
+            self.userId = newUID
+        } else {
+            self.userId = storedUID
+        }
         let initLocationType             = firstShop?.locationType ?? .neighborhood
         let queue                        = MockGameData.generateCustomerQueue(count: 6, for: initLocationType)
         self.customerQueue               = queue

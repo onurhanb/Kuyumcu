@@ -23,6 +23,8 @@ struct LeaderboardView: View {
             weeklyProfit: gameState.weeklyProfit,
             monthlyRevenue: gameState.monthlyRevenue,
             netWorth: gameState.totalNetWorth,
+            cashBalance: gameState.playerCash,
+            lifestylePoints: gameState.lifestyleScore,
             isPlayer: true
         )
     }

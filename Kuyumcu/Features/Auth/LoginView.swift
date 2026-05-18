@@ -1,10 +1,10 @@
 import SwiftUI
 
 struct LoginView: View {
-    let onAuthLogin:  () -> Void   // Google veya Apple sonrası → dükkan adı ekranı
+    let onAuthLogin:  () -> Void   // Apple sonrası → dükkan adı ekranı
     let onGuestLogin: () -> Void   // Misafir → direkt oyun
 
-    @State private var showComingSoon = false
+    @State private var showGoogleSoon = false
 
     var body: some View {
         ZStack {
@@ -38,24 +38,38 @@ struct LoginView: View {
 
                 // Giriş butonları
                 VStack(spacing: 12) {
-                    // Google
-                    loginButton(
-                        icon: "g.circle.fill",
-                        iconColor: Color(red: 0.92, green: 0.26, blue: 0.21),
-                        title: "Google ile Giriş Yap",
-                        style: .card
-                    ) {
-                        showComingSoon = true
-                    }
 
-                    // Apple
+                    // Apple — aktif
                     loginButton(
                         icon: "apple.logo",
                         iconColor: .white,
                         title: "Apple ile Giriş Yap",
-                        style: .card
+                        style: .card,
+                        disabled: false
                     ) {
-                        showComingSoon = true
+                        onAuthLogin()
+                    }
+
+                    // Google — yakında
+                    ZStack(alignment: .topTrailing) {
+                        loginButton(
+                            icon: "g.circle.fill",
+                            iconColor: Color(red: 0.92, green: 0.26, blue: 0.21).opacity(0.4),
+                            title: "Google ile Giriş Yap",
+                            style: .card,
+                            disabled: true
+                        ) {
+                            showGoogleSoon = true
+                        }
+
+                        Text("Yakında")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(.gdlBackground)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 3)
+                            .background(Color.gdlTextSecondary.opacity(0.55))
+                            .cornerRadius(6)
+                            .offset(x: -12, y: -6)
                     }
 
                     // Ayırıcı
@@ -74,7 +88,8 @@ struct LoginView: View {
                         icon: "person.fill",
                         iconColor: .gdlTextSecondary,
                         title: "Misafir Olarak Devam Et",
-                        style: .ghost
+                        style: .ghost,
+                        disabled: false
                     ) {
                         onGuestLogin()
                     }
@@ -88,10 +103,10 @@ struct LoginView: View {
                 .padding(.bottom, 52)
             }
         }
-        .alert("Yakında", isPresented: $showComingSoon) {
+        .alert("Yakında", isPresented: $showGoogleSoon) {
             Button("Tamam", role: .cancel) {}
         } message: {
-            Text("Google ve Apple ile giriş özelliği çok yakında eklenecek. Şimdilik misafir olarak devam edebilirsin.")
+            Text("Google ile giriş özelliği çok yakında eklenecek.")
         }
     }
 
@@ -100,7 +115,14 @@ struct LoginView: View {
     private enum ButtonStyle { case card, ghost }
 
     @ViewBuilder
-    private func loginButton(icon: String, iconColor: Color, title: String, style: ButtonStyle, action: @escaping () -> Void) -> some View {
+    private func loginButton(
+        icon: String,
+        iconColor: Color,
+        title: String,
+        style: ButtonStyle,
+        disabled: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
         Button(action: action) {
             HStack(spacing: 14) {
                 Image(systemName: icon)
@@ -109,15 +131,28 @@ struct LoginView: View {
                     .frame(width: 28)
                 Text(title)
                     .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(style == .card ? .gdlTextPrimary : .gdlTextSecondary)
+                    .foregroundColor(
+                        disabled
+                            ? .gdlTextSecondary.opacity(0.4)
+                            : (style == .card ? .gdlTextPrimary : .gdlTextSecondary)
+                    )
                 Spacer()
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 16)
-            .background(style == .card ? Color.gdlCard : Color.clear)
+            .background(style == .card ? Color.gdlCard.opacity(disabled ? 0.5 : 1) : Color.clear)
             .overlay(
                 RoundedRectangle(cornerRadius: 14)
                     .stroke(style == .ghost ? Color.gdlDivider : Color.clear, lineWidth: 1)
+            )
+            .cornerRadius(14)
+        }
+    }
+}
+
+#Preview {
+    LoginView(onAuthLogin: {}, onGuestLogin: {})
+}
             )
             .cornerRadius(14)
         }
