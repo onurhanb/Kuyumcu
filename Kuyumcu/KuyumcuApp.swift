@@ -9,6 +9,7 @@ import SwiftUI
 struct KuyumcuApp: App {
     @StateObject private var gameState      = GameState()
     @StateObject private var networkMonitor = NetworkMonitor.shared
+    @StateObject private var audioManager   = AudioManager.shared
     @State private var isLoggedIn           = false
     @State private var showShopName         = false
 
@@ -20,7 +21,9 @@ struct KuyumcuApp: App {
             } else if isLoggedIn {
                 MainTabView()
                     .environmentObject(gameState)
+                    .environmentObject(audioManager)
                     .preferredColorScheme(.dark)
+                    .onAppear { audioManager.enterGeneralScreen() }
             } else if showShopName {
                 ShopNameView { name in
                     gameState.shopName = name

@@ -153,12 +153,3 @@ struct LoginView: View {
 #Preview {
     LoginView(onAuthLogin: {}, onGuestLogin: {})
 }
-            )
-            .cornerRadius(14)
-        }
-    }
-}
-
-#Preview {
-    LoginView(onAuthLogin: {}, onGuestLogin: {})
-}

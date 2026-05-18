@@ -241,8 +241,23 @@ struct ShopCard: View {
                 if !shop.isOwned {
                     shopStat(label: "Fiyat", value: FormatUtils.tlCompact(shop.purchasePrice), color: canAfford ? .gdlGold : .gdlNegative)
                 }
-                shopStat(label: "Günlük Pasif", value: FormatUtils.tlCompact(shop.dailyPassiveBaseIncome), color: .gdlGold)
+                shopStat(label: "Günlük", value: FormatUtils.tlCompact(shop.dailyPassiveBaseIncome), color: .gdlGold)
                 shopStat(label: "VIP", value: "\(Int(shop.vipChance * 100))%", color: .gdlTextPrimary)
+
+                // Günlük müşteri limiti
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Kota")
+                        .font(.gdlCaption())
+                        .foregroundColor(.gdlTextSecondary)
+                    HStack(spacing: 3) {
+                        Image(systemName: "person.3.fill")
+                            .font(.system(size: 10))
+                            .foregroundColor(.gdlTextPrimary)
+                        Text("\(shop.locationType.dailyCustomerLimit)")
+                            .font(.gdlBody())
+                            .foregroundColor(.gdlTextPrimary)
+                    }
+                }
 
                 // Personel stat + hire butonu
                 VStack(alignment: .leading, spacing: 2) {

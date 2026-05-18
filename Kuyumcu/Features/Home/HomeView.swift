@@ -329,6 +329,22 @@ struct HomeView: View {
                             .font(.gdlCaption())
                             .foregroundColor(.gdlTextSecondary)
                     }
+                    HStack(spacing: 5) {
+                        Image(systemName: "person.3.fill")
+                            .font(.system(size: 9))
+                            .foregroundColor(.gdlTextSecondary)
+                        let served = shop.id == gameState.activeShop?.id ? gameState.customersServedToday : 0
+                        Text("\(served)/\(shop.locationType.dailyCustomerLimit) müşteri")
+                            .font(.gdlCaption())
+                            .foregroundColor(.gdlTextSecondary)
+                        Text("·").foregroundColor(.gdlTextSecondary).font(.caption)
+                        Image(systemName: "person.badge.clock.fill")
+                            .font(.system(size: 9))
+                            .foregroundColor(.gdlTextSecondary)
+                        Text("\(shop.locationType.queueCapacity) sıra")
+                            .font(.gdlCaption())
+                            .foregroundColor(.gdlTextSecondary)
+                    }
                 }
 
                 Spacer()

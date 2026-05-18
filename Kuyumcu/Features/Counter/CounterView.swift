@@ -16,6 +16,7 @@ private let competitorNames = [
 
 struct CounterView: View {
     @EnvironmentObject var gameState: GameState
+    @EnvironmentObject var audioManager: AudioManager
     @Environment(\.dismiss) var dismiss
 
     // MARK: - Local State
@@ -37,10 +38,10 @@ struct CounterView: View {
         ZStack {
             Color.gdlBackground.ignoresSafeArea()
 
-            if let customer = gameState.currentCustomer {
-                VStack(spacing: 0) {
-                    topBar
+            VStack(spacing: 0) {
+                topBar
 
+                if let customer = gameState.currentCustomer {
                     ScrollView(showsIndicators: false) {
                         VStack(spacing: 0) {
                             sceneView(customer: customer)
@@ -51,37 +52,41 @@ struct CounterView: View {
                                             .animation(.easeInOut(duration: 0.25), value: toastOpacity)
                                     }
                                 }
-                            Rectangle().fill(Color.gdlGold.opacity(0.35)).frame(height: 1)
+                            Rectangle().fill(Color.gdlGold.opacity(0.35)).frame(height: 2)
                             competitorOffersSection(customer: customer)
                                 .padding(.horizontal, 14)
-                            Rectangle().fill(Color.gdlGold.opacity(0.35)).frame(height: 1)
+                            Rectangle().fill(Color.gdlGold.opacity(0.35)).frame(height: 2)
                             keypadSection(customer: customer)
                                 .padding(.horizontal, 14)
                         }
                         .padding(.bottom, 20)
                     }
+                } else {
+                    waitingForCustomerView
                 }
-            } else {
-                emptyQueueView
             }
 
-            // (toast sceneView overlay'inde gösterilir)
+        // (toast sceneView overlay'inde gösterilir)
         }
         .onReceive(counterTimer) { _ in
-            guard let customer = gameState.currentCustomer, !showResult else { return }
+            guard gameState.currentCustomer != nil, !showResult else { return }
             if timeRemaining > 0 {
                 timeRemaining -= 1
             } else {
                 handleTimerExpired()
             }
         }
-        .onChange(of: gameState.currentCustomer?.id) { _ in
+        .onChange(of: gameState.currentCustomer?.id) { _, _ in
             resetForNewCustomer()
         }
         .onAppear {
             resetForNewCustomer()
+            audioManager.enterCounterScreen()
         }
-        .onChange(of: showResult) { isShowing in
+        .onDisappear {
+            audioManager.exitCounterScreen()
+        }
+        .onChange(of: showResult) { _, isShowing in
             if isShowing {
                 withAnimation(.easeIn(duration: 0.2)) { toastOpacity = 1 }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
@@ -147,7 +152,7 @@ struct CounterView: View {
             .padding(.vertical, 10)
             .background(Color.gdlCard)
 
-            Rectangle().fill(Color.gdlGold.opacity(0.35)).frame(height: 1)
+            Rectangle().fill(Color.gdlGold.opacity(0.35)).frame(height: 2)
         }
     }
 
@@ -225,7 +230,8 @@ struct CounterView: View {
                         Image(customer.photoKey)
                             .resizable()
                             .scaledToFit()
-                            .frame(width: rightW - 4, height: 315)
+                            .frame(maxWidth: rightW - 4, maxHeight: 315, alignment: .bottom)
+                            .padding(.trailing, 20)
                     } else {
                         Image(systemName: "person.fill")
                             .resizable()
@@ -259,21 +265,29 @@ struct CounterView: View {
 
                     // Profil rozeti
                     HStack(spacing: 8) {
-                        Circle()
-                            .fill(customerTypeColor(customer).opacity(0.3))
-                            .frame(width: 36, height: 36)
-                            .overlay(
+                        ZStack {
+                            Circle()
+                                .fill(customerTypeColor(customer).opacity(0.3))
+                                .frame(width: 36, height: 36)
+                            if hasCustomer {
+                                Image(customer.photoKey)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 36, height: 36)
+                                    .clipShape(Circle())
+                            } else {
                                 Text(String(customer.name.prefix(1)))
                                     .font(.system(size: 15, weight: .bold))
                                     .foregroundColor(customerTypeColor(customer))
-                            )
+                            }
+                        }
                         VStack(alignment: .leading, spacing: 2) {
                             Text(customer.name)
-                                .font(.system(size: 14, weight: .semibold))
+                                .font(.system(size: 16, weight: .semibold))
                                 .foregroundColor(.white)
                                 .lineLimit(1)
                             Text("\(customer.customerType.displayName) · \(customer.age) yaş")
-                                .font(.system(size: 12))
+                                .font(.system(size: 13))
                                 .foregroundColor(.white.opacity(0.6))
                                 .lineLimit(1)
                         }
@@ -288,7 +302,7 @@ struct CounterView: View {
                     Text(isBargainPhase
                          ? "Daha iyi bir teklif bekliyorum, ustam."
                          : customer.dialogue)
-                        .font(.system(size: 13))
+                        .font(.system(size: 14))
                         .foregroundColor(.white)
                         .lineLimit(3)
                         .fixedSize(horizontal: false, vertical: true)
@@ -311,12 +325,12 @@ struct CounterView: View {
                                         ? .gdlPositive : .orange)
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(item.label)
-                                        .font(.system(size: 13, weight: .semibold))
+                                        .font(.system(size: 14, weight: .semibold))
                                         .foregroundColor(.white)
                                         .lineLimit(1)
                                     if let rateInfo = rateLabel(for: item.productCategory) {
                                         Text(rateInfo)
-                                            .font(.system(size: 11))
+                                            .font(.system(size: 12))
                                             .foregroundColor(.white.opacity(0.6))
                                             .lineLimit(1)
                                     }
@@ -448,23 +462,19 @@ struct CounterView: View {
 
     // MARK: - Empty Queue
 
-    private var emptyQueueView: some View {
-        VStack(spacing: 20) {
-            Button { dismiss() } label: {
-                HStack { Image(systemName: "xmark"); Text("Kapat") }
-                    .foregroundColor(.gdlTextSecondary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding()
-
+    private var waitingForCustomerView: some View {
+        VStack(spacing: 16) {
             Spacer()
-            Image(systemName: "person.slash").font(.system(size: 60)).foregroundColor(.gdlTextSecondary)
-            Text("Şu an müşteri yok")
-                .font(.gdlHeadline()).foregroundColor(.gdlTextSecondary)
-            Text("Biraz bekleyin, müşteriler gelecek.")
-                .font(.gdlBody()).foregroundColor(.gdlTextSecondary)
+            ProgressView()
+                .progressViewStyle(.circular)
+                .tint(.gdlGold)
+                .scaleEffect(1.4)
+            Text("Yeni müşteri bekleniyor...")
+                .font(.gdlBody())
+                .foregroundColor(.gdlTextSecondary)
             Spacer()
         }
+        .frame(maxWidth: .infinity)
     }
 
     // MARK: - Result Overlay

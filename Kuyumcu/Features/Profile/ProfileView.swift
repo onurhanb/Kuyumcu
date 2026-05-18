@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ProfileView: View {
     @EnvironmentObject var gameState: GameState
+    @EnvironmentObject var audioManager: AudioManager
     @State private var showResetAlert = false
 
     var body: some View {
@@ -32,9 +33,20 @@ struct ProfileView: View {
 
                     // Ayarlar
                     SectionCard(title: "Ayarlar", icon: "gearshape.fill") {
-                        settingRow("Ses Efektleri", value: "Açık")
-                        settingRow("Müzik", value: "Açık")
+                        musicToggleRow("Genel Müzik", icon: "music.note",
+                                       binding: Binding(
+                                           get: { audioManager.isGeneralMusicEnabled },
+                                           set: { audioManager.isGeneralMusicEnabled = $0 }
+                                       ))
+                        Divider().background(Color.gdlDivider)
+                        musicToggleRow("Tezgah Müziği", icon: "music.quarternote.3",
+                                       binding: Binding(
+                                           get: { audioManager.isCounterMusicEnabled },
+                                           set: { audioManager.isCounterMusicEnabled = $0 }
+                                       ))
+                        Divider().background(Color.gdlDivider)
                         settingRow("Bildirimler", value: "Kapalı")
+                        Divider().background(Color.gdlDivider)
                         settingRow("Uygulama Versiyonu", value: "1.0.0 Alpha")
                     }
                     .padding(.horizontal)
@@ -428,6 +440,21 @@ struct ProfileView: View {
             Text(label).font(.gdlBody()).foregroundColor(.gdlTextPrimary)
             Spacer()
             Text(value).font(.gdlBody()).foregroundColor(.gdlTextSecondary)
+        }
+        .padding(.vertical, 3)
+    }
+
+    private func musicToggleRow(_ label: String, icon: String, binding: Binding<Bool>) -> some View {
+        HStack {
+            Image(systemName: icon)
+                .font(.system(size: 14))
+                .foregroundColor(.gdlGold)
+                .frame(width: 22)
+            Text(label).font(.gdlBody()).foregroundColor(.gdlTextPrimary)
+            Spacer()
+            Toggle("", isOn: binding)
+                .labelsHidden()
+                .tint(.gdlGold)
         }
         .padding(.vertical, 3)
     }

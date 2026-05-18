@@ -115,6 +115,30 @@ enum ShopLocationType: String, Codable, CaseIterable {
         case .grandBazaar:    return 70_000
         }
     }
+
+    /// Günlük toplam müşteri limiti (250'şer artar)
+    var dailyCustomerLimit: Int {
+        switch self {
+        case .neighborhood:   return 250
+        case .bazaar:         return 500
+        case .districtBazaar: return 750
+        case .cityCenter:     return 1000
+        case .mall:           return 1250
+        case .grandBazaar:    return 1500
+        }
+    }
+
+    /// Aynı anda bekleme sırasında durabilecek maksimum müşteri (5'er artar)
+    var queueCapacity: Int {
+        switch self {
+        case .neighborhood:   return 5
+        case .bazaar:         return 10
+        case .districtBazaar: return 15
+        case .cityCenter:     return 20
+        case .mall:           return 25
+        case .grandBazaar:    return 30
+        }
+    }
 }
 
 struct Shop: Identifiable, Codable, Equatable {

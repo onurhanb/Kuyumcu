@@ -31,6 +31,8 @@ class GameState: ObservableObject {
     @Published var currentCustomer: Customer?
     @Published var customerQueue: [Customer]
     @Published var isBargaining: Bool = false
+    @Published var customersServedToday: Int = 0
+    private var arrivalTimer: AnyCancellable?
 
     // MARK: - Stats
     @Published var totalTransactions: Int
@@ -89,15 +91,16 @@ class GameState: ObservableObject {
         } else {
             self.userId = storedUID
         }
-        let initLocationType             = firstShop?.locationType ?? .neighborhood
-        let queue                        = MockGameData.generateCustomerQueue(count: 6, for: initLocationType)
-        self.customerQueue               = queue
-        self.currentCustomer             = queue.first
+        self.customerQueue               = []
+        self.currentCustomer             = nil
+        self.customersServedToday        = 0
 
         GameSaveService.load(into: self)
 
         // Uygulama açılışında günlük fiyat güncelleme kontrolü
         Task { await fetchRatesIfNeeded() }
+
+        startArrivalTimer()
     }
 
     // MARK: - Rate Fetch
@@ -204,7 +207,10 @@ class GameState: ObservableObject {
         passiveIncomeCollectedToday  = false
         dailyProfit                  = 0
         isBargaining                 = false
-        refillQueue()
+        customersServedToday         = 0
+        if currentDay % 7  == 0 { weeklyProfit   = 0 }
+        if currentDay % 30 == 0 { monthlyRevenue  = 0 }
+        startArrivalTimer()
         GameSaveService.save(self)
     }
 
@@ -282,9 +288,10 @@ class GameState: ObservableObject {
         yesterdayCash               = 0
         previousRatePrices          = [:]
         isBargaining                = false
-        let queue = MockGameData.generateCustomerQueue(count: 6, for: first?.locationType ?? .neighborhood)
-        customerQueue   = queue
-        currentCustomer = queue.first
+        customersServedToday        = 0
+        customerQueue               = []
+        currentCustomer             = nil
+        startArrivalTimer()
     }
 
     func adjustSatisfaction(_ delta: Int) {
@@ -350,17 +357,14 @@ class GameState: ObservableObject {
     /// Aktif dükkanı değiştirir, o dükkanın lokasyonuna göre müşteri kuyruğu oluşturur.
     func enterShop(_ shop: Shop) {
         activeShop = shop
-        refillQueue()
+        startArrivalTimer()
         GameSaveService.save(self)
     }
 
     func advanceCustomer() {
         if !customerQueue.isEmpty {
             customerQueue.removeFirst()
-        }
-        if customerQueue.count < 4 {
-            let locationType = activeShop?.locationType ?? .neighborhood
-            customerQueue.append(contentsOf: MockGameData.generateCustomerQueue(count: 2, for: locationType))
+            customersServedToday += 1
         }
         currentCustomer = customerQueue.first
     }
@@ -462,10 +466,30 @@ class GameState: ObservableObject {
 
     // MARK: - Private Helpers
 
-    private func refillQueue() {
+    func startArrivalTimer() {
+        arrivalTimer?.cancel()
+        customerQueue = []
+        currentCustomer = nil
+        spawnCustomer()
+        arrivalTimer = Timer.publish(every: 5, on: .main, in: .common)
+            .autoconnect()
+            .sink { [weak self] _ in self?.spawnCustomer() }
+    }
+
+    func spawnCustomer() {
+        let limit = activeShop?.locationType.dailyCustomerLimit ?? 250
+        guard customersServedToday < limit else { return }
+        let cap = activeShop?.locationType.queueCapacity ?? 5
+        if customerQueue.count >= cap {
+            trustScore = max(0, trustScore - 5)
+            return
+        }
         let locationType = activeShop?.locationType ?? .neighborhood
-        customerQueue = MockGameData.generateCustomerQueue(count: 6, for: locationType)
-        currentCustomer = customerQueue.first
+        let newCustomer = CustomerLibrary.generateCustomer(for: locationType)
+        customerQueue.append(newCustomer)
+        if currentCustomer == nil {
+            currentCustomer = customerQueue.first
+        }
     }
 
     private func deductInventory(items: [RequestItem]) {

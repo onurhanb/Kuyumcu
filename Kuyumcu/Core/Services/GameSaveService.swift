@@ -39,6 +39,8 @@ class GameSaveService {
             "ratesSellPrices":             Dictionary(uniqueKeysWithValues: state.rates.map { ($0.type, $0.sellPrice) }),
             "ratesSourceName":             state.rates.first?.sourceName ?? "",
             "ratesSourceDate":             state.rates.first?.sourceDate ?? "",
+            // Owned lifestyle items (name used as stable key)
+            "lifestyleOwnedNames":         state.lifestyleItems.filter { $0.isOwned }.map { $0.name },
         ]
         UserDefaults.standard.set(dict, forKey: key)
     }
@@ -92,6 +94,14 @@ class GameSaveService {
             state.ownedShops  = allShops.filter { ownedNames.contains($0.name) }.map { var s = $0; s.isOwned = true; return s }
             state.lockedShops = allShops.filter { !ownedNames.contains($0.name) }
             state.activeShop  = state.ownedShops.first
+        }
+
+        // Restore owned lifestyle items
+        if let ownedNames = dict["lifestyleOwnedNames"] as? [String] {
+            let nameSet = Set(ownedNames)
+            for i in state.lifestyleItems.indices {
+                state.lifestyleItems[i].isOwned = nameSet.contains(state.lifestyleItems[i].name)
+            }
         }
     }
 
