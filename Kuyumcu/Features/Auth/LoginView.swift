@@ -1,10 +1,13 @@
 import SwiftUI
+import AuthenticationServices
 
 struct LoginView: View {
-    let onAuthLogin:  () -> Void   // Apple sonrası → dükkan adı ekranı
-    let onGuestLogin: () -> Void   // Misafir → direkt oyun
+    let onAuthLogin: () -> Void   // Başarılı giriş → oyun
 
-    @State private var showGoogleSoon = false
+    @State private var isSigningIn         = false
+    @State private var errorMessage: String?
+    @State private var showGoogleSoon      = false
+    @State private var coordinator: AppleSignInCoordinator?
 
     var body: some View {
         ZStack {
@@ -43,11 +46,11 @@ struct LoginView: View {
                     loginButton(
                         icon: "apple.logo",
                         iconColor: .white,
-                        title: "Apple ile Giriş Yap",
+                        title: isSigningIn ? "Giriş yapılıyor..." : "Apple ile Giriş Yap",
                         style: .card,
-                        disabled: false
+                        disabled: isSigningIn
                     ) {
-                        onAuthLogin()
+                        startAppleSignIn()
                     }
 
                     // Google — yakında
@@ -72,32 +75,20 @@ struct LoginView: View {
                             .offset(x: -12, y: -6)
                     }
 
-                    // Ayırıcı
-                    HStack {
-                        Rectangle().fill(Color.gdlDivider).frame(height: 1)
-                        Text("veya")
+                    // Hata mesajı
+                    if let errorMessage {
+                        Text(errorMessage)
                             .font(.system(size: 12))
-                            .foregroundColor(.gdlTextSecondary)
-                            .padding(.horizontal, 12)
-                        Rectangle().fill(Color.gdlDivider).frame(height: 1)
-                    }
-                    .padding(.vertical, 4)
-
-                    // Misafir
-                    loginButton(
-                        icon: "person.fill",
-                        iconColor: .gdlTextSecondary,
-                        title: "Misafir Olarak Devam Et",
-                        style: .ghost,
-                        disabled: false
-                    ) {
-                        onGuestLogin()
+                            .foregroundColor(.gdlNegative)
+                            .multilineTextAlignment(.center)
+                            .padding(.top, 4)
                     }
 
-                    Text("Misafir girişinde ilerlemeniz kaydedilmez.")
+                    Text("Giriş yaparak ilerlemeniz buluta kaydedilir.")
                         .font(.system(size: 11))
                         .foregroundColor(.gdlTextSecondary.opacity(0.6))
                         .multilineTextAlignment(.center)
+                        .padding(.top, 4)
                 }
                 .padding(.horizontal, 28)
                 .padding(.bottom, 52)
@@ -108,6 +99,56 @@ struct LoginView: View {
         } message: {
             Text("Google ile giriş özelliği çok yakında eklenecek.")
         }
+    }
+
+    // MARK: - Apple Sign In
+
+    private func startAppleSignIn() {
+        isSigningIn  = true
+        errorMessage = nil
+
+        let rawNonce    = generateRawNonce()
+        let hashedNonce = sha256Nonce(rawNonce)
+
+        let c = AppleSignInCoordinator()
+        c.rawNonce = rawNonce
+        c.onSuccess = { idToken, nonce in
+            Task {
+                do {
+                    try await AuthService.shared.signInWithApple(idToken: idToken, rawNonce: nonce)
+                    await MainActor.run {
+                        isSigningIn = false
+                        onAuthLogin()
+                    }
+                } catch {
+                    await MainActor.run {
+                        isSigningIn  = false
+                        errorMessage = "Giriş başarısız: \(error.localizedDescription)"
+                    }
+                }
+            }
+        }
+        c.onError = { error in
+            DispatchQueue.main.async {
+                isSigningIn  = false
+                // ASAuthorizationError.canceled → kullanıcı iptal etti, mesaj gösterme
+                let asError = error as? ASAuthorizationError
+                if asError?.code != .canceled {
+                    errorMessage = "Apple ile giriş başarısız oldu."
+                }
+            }
+        }
+        coordinator = c
+
+        let provider = ASAuthorizationAppleIDProvider()
+        let request  = provider.createRequest()
+        request.requestedScopes = [.fullName, .email]
+        request.nonce = hashedNonce
+
+        let controller = ASAuthorizationController(authorizationRequests: [request])
+        controller.delegate                    = c
+        controller.presentationContextProvider = c
+        controller.performRequests()
     }
 
     // MARK: - Button Builder
@@ -137,6 +178,9 @@ struct LoginView: View {
                             : (style == .card ? .gdlTextPrimary : .gdlTextSecondary)
                     )
                 Spacer()
+                if disabled && icon == "apple.logo" {
+                    ProgressView().tint(.gdlGold).scaleEffect(0.8)
+                }
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 16)
@@ -147,9 +191,52 @@ struct LoginView: View {
             )
             .cornerRadius(14)
         }
+        .disabled(disabled)
+    }
+}
+
+// MARK: - Apple Sign In Coordinator
+
+class AppleSignInCoordinator: NSObject,
+    ASAuthorizationControllerDelegate,
+    ASAuthorizationControllerPresentationContextProviding {
+
+    var rawNonce: String = ""
+    var onSuccess: ((String, String) -> Void)?
+    var onError:   ((Error) -> Void)?
+
+    func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap { $0.windows }
+            .first { $0.isKeyWindow } ?? UIWindow()
+    }
+
+    func authorizationController(
+        controller: ASAuthorizationController,
+        didCompleteWithAuthorization authorization: ASAuthorization
+    ) {
+        guard
+            let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
+            let tokenData  = credential.identityToken,
+            let idToken    = String(data: tokenData, encoding: .utf8)
+        else {
+            onError?(NSError(domain: "AppleSignIn", code: -1,
+                             userInfo: [NSLocalizedDescriptionKey: "Token alınamadı"]))
+            return
+        }
+        onSuccess?(idToken, rawNonce)
+    }
+
+    func authorizationController(
+        controller: ASAuthorizationController,
+        didCompleteWithError error: Error
+    ) {
+        onError?(error)
     }
 }
 
 #Preview {
-    LoginView(onAuthLogin: {}, onGuestLogin: {})
+    LoginView(onAuthLogin: {})
 }
+

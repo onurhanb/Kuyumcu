@@ -3,7 +3,24 @@ import SwiftUI
 struct ProfileView: View {
     @EnvironmentObject var gameState: GameState
     @EnvironmentObject var audioManager: AudioManager
-    @State private var showResetAlert = false
+    @StateObject private var adManager = AdManager.shared
+
+    @State private var showResetAlert    = false
+    @State private var showSignOutAlert  = false
+    @State private var showAdUnavailable = false
+    @State private var isWatchingAd      = false
+
+    // MARK: - Günlük reset hakkı
+    private let resetKey = "lastResetDate"
+
+    private var canResetToday: Bool {
+        guard let last = UserDefaults.standard.object(forKey: resetKey) as? Date else { return true }
+        return !Calendar.current.isDateInToday(last)
+    }
+
+    private func markResetUsed() {
+        UserDefaults.standard.set(Date(), forKey: resetKey)
+    }
 
     var body: some View {
         ZStack {
@@ -51,22 +68,62 @@ struct ProfileView: View {
                     }
                     .padding(.horizontal)
 
-                    // Oyunu Sıfırla butonu
+                    // Hesaptan Çıkış butonu
                     Button {
-                        showResetAlert = true
+                        showSignOutAlert = true
                     } label: {
                         HStack(spacing: 10) {
-                            Image(systemName: "arrow.counterclockwise.circle.fill")
+                            Image(systemName: "rectangle.portrait.and.arrow.right")
                                 .font(.system(size: 18))
-                            Text("Oyunu Sıfırla")
+                            Text("Hesaptan Çıkış Yap")
+                                .font(.system(size: 15, weight: .semibold))
+                        }
+                        .foregroundColor(.gdlGold)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(Color.gdlGold.opacity(0.12))
+                        .cornerRadius(14)
+                    }
+                    .padding(.horizontal)
+                    .padding(.top, 8)
+
+                    // Oyunu Sıfırla butonu
+                    Button {
+                        if !canResetToday {
+                            showAdUnavailable = true
+                            return
+                        }
+                        if adManager.isAdReady {
+                            isWatchingAd = true
+                            adManager.showAd {
+                                isWatchingAd = false
+                                showResetAlert = true
+                            }
+                        } else {
+                            // Reklam yüklenmediyse yeniden dene
+                            adManager.loadAd()
+                            showAdUnavailable = true
+                        }
+                    } label: {
+                        HStack(spacing: 10) {
+                            if isWatchingAd {
+                                ProgressView().tint(.white)
+                            } else {
+                                Image(systemName: canResetToday
+                                      ? "arrow.counterclockwise.circle.fill"
+                                      : "lock.circle.fill")
+                                    .font(.system(size: 18))
+                            }
+                            Text(canResetToday ? "Oyunu Sıfırla" : "Bugünlük Sıfırlama Hakkı Kullanıldı")
                                 .font(.system(size: 15, weight: .semibold))
                         }
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
-                        .background(Color.gdlNegative)
+                        .background(canResetToday ? Color.gdlNegative : Color.gray.opacity(0.4))
                         .cornerRadius(14)
                     }
+                    .disabled(!canResetToday || isWatchingAd)
                     .padding(.horizontal)
                     .padding(.top, 8)
 
@@ -77,13 +134,29 @@ struct ProfileView: View {
         }
         .navigationTitle("Profil")
         .navigationBarTitleDisplayMode(.large)
+        .alert("Hesaptan Çıkış", isPresented: $showSignOutAlert) {
+            Button("Çıkış Yap", role: .destructive) {
+                Task { try? await AuthService.shared.signOut() }
+            }
+            Button("İptal", role: .cancel) {}
+        } message: {
+            Text("Hesabından çıkış yapılacak. Verilerın bulutta güvende, tekrar giriş yapabilirsin.")
+        }
         .alert("Oyunu Sıfırla", isPresented: $showResetAlert) {
             Button("Sıfırla", role: .destructive) {
+                markResetUsed()
                 gameState.resetGame()
             }
             Button("İptal", role: .cancel) {}
         } message: {
             Text("Tüm ilerleme silinecek ve oyun baştan başlayacak. Bu işlem geri alınamaz.")
+        }
+        .alert("Reklam Hazır Değil", isPresented: $showAdUnavailable) {
+            Button("Tamam", role: .cancel) {}
+        } message: {
+            Text(canResetToday
+                 ? "Reklam yükleniyor, biraz sonra tekrar dene."
+                 : "Bugünlük sıfırlama hakkını kullandın. Yarın tekrar dene.")
         }
     }
 
@@ -112,12 +185,12 @@ struct ProfileView: View {
                         .font(.gdlCaption())
                         .foregroundColor(.gdlTextSecondary)
                 }
-                if !gameState.isGuest {
+                if let uid = AuthService.shared.userId {
                     HStack(spacing: 4) {
                         Image(systemName: "person.badge.key.fill")
                             .font(.system(size: 11))
                             .foregroundColor(.gdlTextSecondary.opacity(0.6))
-                        Text("ID: \(gameState.userId.prefix(8).uppercased())")
+                        Text("ID: \(uid.uuidString.prefix(8).uppercased())")
                             .font(.system(size: 11, design: .monospaced))
                             .foregroundColor(.gdlTextSecondary.opacity(0.6))
                     }
@@ -326,8 +399,8 @@ struct ProfileView: View {
                     } else {
                         // 6 sütunlu grid
                         LazyVGrid(
-                            columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 6),
-                            spacing: 6
+                            columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 6),
+                            spacing: 8
                         ) {
                             ForEach(ownedInCat) { item in
                                 lifestyleThumb(item: item)
@@ -357,6 +430,7 @@ struct ProfileView: View {
                     Image(imgKey)
                         .resizable()
                         .scaledToFill()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                 } else {
                     Image(systemName: item.icon)

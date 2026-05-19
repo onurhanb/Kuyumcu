@@ -23,6 +23,10 @@ class GameState: ObservableObject {
     @Published var monthlyRevenue: Double
     @Published var currentDay: Int
     @Published var passiveIncomeCollectedToday: Bool
+    @Published var shopAccumulatedIncome: [String: Double] = [:]   // per-shop birikimli pasif gelir
+    @Published var passiveIncomeCollectedAt: Date? = nil            // son çekim zamanı (08:00 sıfırlama için)
+    private var passiveIncomeTimer: AnyCancellable?
+    private var passiveTimerGeneration = 0                          // stale asyncAfter'ları iptal etmek için
 
     // MARK: - Content
     @Published var activeEvents: [GameEvent]
@@ -31,7 +35,6 @@ class GameState: ObservableObject {
     @Published var currentCustomer: Customer?
     @Published var customerQueue: [Customer]
     @Published var isBargaining: Bool = false
-    @Published var customersServedToday: Int = 0
     private var arrivalTimer: AnyCancellable?
 
     // MARK: - Stats
@@ -48,12 +51,59 @@ class GameState: ObservableObject {
 
     // MARK: - Identity
     @Published var shopName: String = "Misafir"
-    @Published var isGuest: Bool = false
-    @Published var userId: String = ""
 
     // MARK: - History
     @Published var yesterdayCash: Double
-    @Published var previousRatePrices: [String: Double]
+
+    // MARK: - Daily Reward
+    @Published var dailyRewardDay: Int       = 0    // son alınan gün (0 = hiç)
+    @Published var dailyRewardClaimedAt: Date? = nil // son alım tarihi
+
+    static let dailyRewardAmounts: [Int: Double] = [
+        1: 5_000, 2: 10_000, 3: 15_000, 4: 20_000,
+        5: 25_000, 6: 30_000, 7: 100_000
+    ]
+
+    /// Oyun günü başlangıcı: İstanbul 08:00 (UTC+3)
+    private static func istanbulGameDayStart(of date: Date) -> Date {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "Europe/Istanbul")!
+        var comps = cal.dateComponents([.year, .month, .day], from: date)
+        comps.hour = 8; comps.minute = 0; comps.second = 0
+        let boundary = cal.date(from: comps)!
+        // 08:00'dan önce isek bir önceki günün 08:00'ına aitiz
+        return date < boundary ? cal.date(byAdding: .day, value: -1, to: boundary)! : boundary
+    }
+
+    private var daysSinceLastClaim: Int {
+        guard let last = dailyRewardClaimedAt else { return Int.max }
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "Europe/Istanbul")!
+        let claimDay = Self.istanbulGameDayStart(of: last)
+        let todayDay = Self.istanbulGameDayStart(of: Date())
+        return cal.dateComponents([.day], from: claimDay, to: todayDay).day ?? Int.max
+    }
+
+    var dailyRewardClaimedToday: Bool { daysSinceLastClaim == 0 }
+
+    var dailyRewardAvailableDay: Int {
+        let d = daysSinceLastClaim
+        if d == 0 { return dailyRewardDay }            // bugün alındı
+        if d == 1 { return min(dailyRewardDay + 1, 7) } // dün alındı → sonraki
+        return 1                                       // 2+ gün → sıfır
+    }
+
+    func claimDailyReward() {
+        guard !dailyRewardClaimedToday else { return }
+        let day    = dailyRewardAvailableDay
+        let reward = Self.dailyRewardAmounts[day] ?? 0
+        playerCash           += reward
+        dailyProfit          += reward
+        dailyRewardDay        = day
+        dailyRewardClaimedAt  = Date()
+        GameSaveService.save(self)
+        Task { await SupabaseSaveService.save(self) }
+    }
 
     // MARK: - Init
 
@@ -81,26 +131,14 @@ class GameState: ObservableObject {
         self.lifestyleScore              = 0
         self.trustScore                  = 50
         self.yesterdayCash               = 0
-        self.previousRatePrices          = [:]
-        // Kalıcı kullanıcı kimliği — ilk çalışmada üretilir, UserDefaults'ta saklanır
-        let storedUID = UserDefaults.standard.string(forKey: "gdl_userId") ?? ""
-        if storedUID.isEmpty {
-            let newUID = UUID().uuidString
-            UserDefaults.standard.set(newUID, forKey: "gdl_userId")
-            self.userId = newUID
-        } else {
-            self.userId = storedUID
-        }
         self.customerQueue               = []
         self.currentCustomer             = nil
-        self.customersServedToday        = 0
 
-        GameSaveService.load(into: self)
-
-        // Uygulama açılışında günlük fiyat güncelleme kontrolü
-        Task { await fetchRatesIfNeeded() }
+        // Uygulama açılışında günlük fiyat güncelleme kontrolü (Supabase'den)
+        // Not: Asıl yükleme KuyumcuApp içinde SupabaseSaveService.load() ile yapılır.
 
         startArrivalTimer()
+        startPassiveTimer()
     }
 
     // MARK: - Rate Fetch
@@ -140,27 +178,24 @@ class GameState: ObservableObject {
         apply("USD",         buy: fetched.usdTRY,         sell: fetched.usdSell)
         apply("EUR",         buy: fetched.eurTRY,         sell: fetched.eurSell)
 
-        GameSaveService.save(self)
+        Task { await SupabaseSaveService.save(self) }
     }
 
     // MARK: - Computed Properties
 
     var totalNetWorth: Double {
         var worth = playerCash
-        worth += inventory.gramGold    * (rate(for: "gramGold")?.buyPrice    ?? 4600)
-        worth += inventory.quarterGold * (rate(for: "quarterGold")?.buyPrice ?? 10200)
-        worth += inventory.halfGold    * (rate(for: "halfGold")?.buyPrice    ?? 20400)
-        worth += inventory.fullGold    * (rate(for: "fullGold")?.buyPrice    ?? 40800)
-        worth += inventory.usd         * (rate(for: "USD")?.buyPrice         ?? 45)
-        worth += inventory.eur         * (rate(for: "EUR")?.buyPrice         ?? 49)
+        worth += inventory.gramGold    * (rate(for: "gramGold")?.buyPrice    ?? 4580)
+        worth += inventory.quarterGold * (rate(for: "quarterGold")?.buyPrice ?? 10180)
+        worth += inventory.halfGold    * (rate(for: "halfGold")?.buyPrice    ?? 20360)
+        worth += inventory.fullGold    * (rate(for: "fullGold")?.buyPrice    ?? 40720)
+        worth += inventory.usd         * (rate(for: "USD")?.buyPrice         ?? 44.80)
+        worth += inventory.eur         * (rate(for: "EUR")?.buyPrice         ?? 48.80)
         return worth
     }
 
     var passiveIncomeAvailable: Double {
-        guard !passiveIncomeCollectedToday else { return 0 }
-        return ownedShops.reduce(0.0) { sum, shop in
-            sum + shop.dailyPassiveBaseIncome * shop.passiveMultiplier * employeeMultiplier(for: shop) * eventTrafficMultiplier
-        }
+        ownedShops.reduce(0.0) { $0 + (shopAccumulatedIncome[$1.name] ?? 0) }
     }
 
     var eventTrafficMultiplier: Double {
@@ -180,12 +215,16 @@ class GameState: ObservableObject {
     func collectPassiveIncome() {
         guard !passiveIncomeCollectedToday else { return }
         let income = passiveIncomeAvailable
+        guard income > 0 else { return }
         playerCash                  += income
         inventory.tryCash           += income
-        passiveIncomeCollectedToday  = true
         dailyProfit                 += income
         totalProfit                 += income
+        passiveIncomeCollectedToday  = true
+        passiveIncomeCollectedAt     = Date()
+        shopAccumulatedIncome        = [:]
         GameSaveService.save(self)
+        Task { await SupabaseSaveService.save(self) }
     }
 
     func hireEmployee(shopId: UUID) {
@@ -197,21 +236,19 @@ class GameState: ObservableObject {
         playerCash -= cost
         inventory.tryCash -= cost
         ownedShops[idx].employeeCount += 1
-        GameSaveService.save(self)
+        Task { await SupabaseSaveService.save(self) }
     }
 
     func advanceDay() {
         yesterdayCash                = inventory.tryCash
-        previousRatePrices           = Dictionary(uniqueKeysWithValues: rates.map { ($0.type, ($0.buyPrice + $0.sellPrice) / 2.0) })
         currentDay                  += 1
         passiveIncomeCollectedToday  = false
         dailyProfit                  = 0
         isBargaining                 = false
-        customersServedToday         = 0
         if currentDay % 7  == 0 { weeklyProfit   = 0 }
         if currentDay % 30 == 0 { monthlyRevenue  = 0 }
         startArrivalTimer()
-        GameSaveService.save(self)
+        Task { await SupabaseSaveService.save(self) }
     }
 
     // MARK: - Quick Trade (komisyonsuz toptancı)
@@ -257,13 +294,14 @@ class GameState: ObservableObject {
         case .jewelry:
             if isBuying { inventory.gramGold += qty } else { inventory.gramGold -= qty }
         }
-        GameSaveService.save(self)
+        Task { await SupabaseSaveService.save(self) }
     }
 
     // MARK: - Reset Game
 
     func resetGame() {
-        GameSaveService.reset()
+        // Supabase oturumunu kapat (KuyumcuApp auth gate'i LoginView'e yönlendirir)
+        Task { try? await AuthService.shared.signOut() }
         let shops = MockGameData.allShops
         let first = shops.first(where: { $0.isOwned })
         playerCash                  = 1_000_000
@@ -286,9 +324,7 @@ class GameState: ObservableObject {
         lifestyleScore              = 0
         trustScore                  = 50
         yesterdayCash               = 0
-        previousRatePrices          = [:]
         isBargaining                = false
-        customersServedToday        = 0
         customerQueue               = []
         currentCustomer             = nil
         startArrivalTimer()
@@ -329,6 +365,7 @@ class GameState: ObservableObject {
         trustScore = min(100, trustScore + 0.5)
         advanceCustomer()
         GameSaveService.save(self)
+        Task { await SupabaseSaveService.save(self) }
     }
 
     func processRejectedTransaction() {
@@ -339,6 +376,7 @@ class GameState: ObservableObject {
         isBargaining       = false
         advanceCustomer()
         GameSaveService.save(self)
+        Task { await SupabaseSaveService.save(self) }
     }
 
     func processBargain() {
@@ -352,19 +390,19 @@ class GameState: ObservableObject {
         isBargaining = false
         advanceCustomer()
         GameSaveService.save(self)
+        Task { await SupabaseSaveService.save(self) }
     }
 
     /// Aktif dükkanı değiştirir, o dükkanın lokasyonuna göre müşteri kuyruğu oluşturur.
     func enterShop(_ shop: Shop) {
         activeShop = shop
         startArrivalTimer()
-        GameSaveService.save(self)
+        Task { await SupabaseSaveService.save(self) }
     }
 
     func advanceCustomer() {
         if !customerQueue.isEmpty {
             customerQueue.removeFirst()
-            customersServedToday += 1
         }
         currentCustomer = customerQueue.first
     }
@@ -377,7 +415,7 @@ class GameState: ObservableObject {
         purchased.isOwned  = true
         lockedShops.removeAll { $0.id == shop.id }
         ownedShops.append(purchased)
-        GameSaveService.save(self)
+        Task { await SupabaseSaveService.save(self) }
     }
 
     func buyLifestyleItem(_ item: LifestyleItem) {
@@ -388,7 +426,7 @@ class GameState: ObservableObject {
             lifestyleItems[idx].isOwned = true
         }
         lifestyleScore += item.lifestylePoints
-        GameSaveService.save(self)
+        Task { await SupabaseSaveService.save(self) }
     }
 
     // MARK: - Stock Check
@@ -471,14 +509,81 @@ class GameState: ObservableObject {
         customerQueue = []
         currentCustomer = nil
         spawnCustomer()
-        arrivalTimer = Timer.publish(every: 5, on: .main, in: .common)
+        arrivalTimer = Timer.publish(every: 10, on: .main, in: .common)
             .autoconnect()
             .sink { [weak self] _ in self?.spawnCustomer() }
     }
 
+    /// Tüm dükkanları global duvar saatinin 10'ar saniyelik dilimlerine kilitler.
+    /// Herkes aynı anda tıklar: :00, :10, :20 … — dükkan satın alma zamanına bağlı değil.
+    func startPassiveTimer() {
+        passiveIncomeTimer?.cancel()
+        applyOfflineTicks()
+
+        passiveTimerGeneration += 1
+        let gen = passiveTimerGeneration
+
+        // Sonraki global 10-saniye sınırına kadar bekle
+        let now = Date().timeIntervalSince1970
+        let delay = 10.0 - now.truncatingRemainder(dividingBy: 10.0)
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            guard let self, self.passiveTimerGeneration == gen else { return }
+            self.doPassiveTick()
+            self.passiveIncomeTimer = Timer.publish(every: 10, on: .main, in: .common)
+                .autoconnect()
+                .sink { [weak self] _ in self?.doPassiveTick() }
+        }
+    }
+
+    private func doPassiveTick() {
+        guard !passiveIncomeCollectedToday else { return }
+        for shop in ownedShops {
+            let tick = shop.locationType.passiveTick
+                     * employeeMultiplier(for: shop)
+                     * eventTrafficMultiplier
+            shopAccumulatedIncome[shop.name, default: 0] += tick
+        }
+        // Hangi 10-sn dilimine ait olduğunu kaydet (offline hesabı için)
+        UserDefaults.standard.set(
+            floor(Date().timeIntervalSince1970 / 10),
+            forKey: "passiveTickPeriod"
+        )
+    }
+
+    /// Uygulama arka plandayken veya kapalıyken geçen süredeki tıklamaları hesaplar.
+    /// Bugünkü İstanbul oyun gününden öncesi sayılmaz.
+    func applyOfflineTicks() {
+        guard !passiveIncomeCollectedToday else { return }
+        let now = Date()
+        let currentPeriod = floor(now.timeIntervalSince1970 / 10)
+        let savedPeriod   = UserDefaults.standard.double(forKey: "passiveTickPeriod")
+
+        // Bugünün oyun günü başlangıcından önceki tıklamalar geçersiz
+        let gameDayPeriod = floor(Self.istanbulGameDayStart(of: now).timeIntervalSince1970 / 10)
+        let effectiveFrom = max(savedPeriod > 0 ? savedPeriod : currentPeriod, gameDayPeriod)
+
+        let missed = Int(currentPeriod - effectiveFrom)
+        guard missed > 0 else { return }
+
+        for shop in ownedShops {
+            let tick = shop.locationType.passiveTick
+                     * employeeMultiplier(for: shop)
+                     * eventTrafficMultiplier
+            shopAccumulatedIncome[shop.name, default: 0] += Double(missed) * tick
+        }
+        UserDefaults.standard.set(currentPeriod, forKey: "passiveTickPeriod")
+    }
+
+    /// Eğer son toplama önceki oyun gününde ise (İstanbul 08:00 sınırı) sıfırlar
+    func checkPassiveCollectionReset() {
+        guard let at = passiveIncomeCollectedAt else { return }
+        if Self.istanbulGameDayStart(of: at) < Self.istanbulGameDayStart(of: Date()) {
+            passiveIncomeCollectedToday = false
+        }
+    }
+
     func spawnCustomer() {
-        let limit = activeShop?.locationType.dailyCustomerLimit ?? 250
-        guard customersServedToday < limit else { return }
         let cap = activeShop?.locationType.queueCapacity ?? 5
         if customerQueue.count >= cap {
             trustScore = max(0, trustScore - 5)

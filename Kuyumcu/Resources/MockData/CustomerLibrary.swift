@@ -145,203 +145,219 @@ enum CustomerLibrary {
     // MARK: - Dialogue Templates (tipe göre, 25 şablon her tip: 15 tek + 10 çift)
     // {A}=miktar1, {B}=ürün1, {C}=miktar2, {D}=ürün2
 
-    private static let dialogues: [CustomerType: (single: [String], dual: [String])] = [
+    private static let dialogues: [CustomerType: (singleBuy: [String], singleSell: [String], dualBuy: [String], dualSell: [String])] = [
 
         // NORMAL — kibar, standart, tam cümleler
+        // singleBuy  = müşteri bizden ALACAK (biz satıyoruz)
+        // singleSell = müşteri bize SATACAK (biz alıyoruz)
         .regular: (
-            single: [
-                "Merhaba. {A} adet {B} almak istiyorum, fiyat nedir acaba?",
-                "Kolay gelsin. {A} {B} için bugün fiyatınız nedir?",
+            singleBuy: [
+                "Merhaba. {A} adet {B} almak istiyorum, fiyatınız nedir?",
                 "Günaydın. {A} {B} almak istiyorum, müsait misiniz?",
-                "Selamünaleyküm usta. {A} adet {B} bozdurmak istiyorum.",
-                "Merhaba. {A} {B} var mı elinizde, almak istiyorum.",
-                "Kolay gelsin. Elimde {A} {B} var, satmak istiyorum.",
-                "Günaydın. {A} {B} için bugün ne fiyat veriyorsunuz?",
+                "Kolay gelsin. {A} {B} var mı elinizde, almak istiyorum.",
                 "Merhaba. Yatırım için {A} adet {B} almak istiyorum.",
-                "Kolay gelsin. {A} {B} ne kadar eder bugün?",
-                "Selamlar usta. {A} {B} satmak istiyorum, ne verirsiniz?",
-                "Merhaba. Çeyizim için {A} {B} almak istiyorum.",
-                "Günaydın. {A} adet {B} bozdurmak istiyorum, ne fiyat verirsiniz?",
                 "Kolay gelsin. {A} {B} almayı düşünüyorum, fiyat müsait mi?",
-                "Merhaba. Elimde {A} {B} var, ne kadar alırsınız?",
                 "Selamünaleyküm. {A} adet {B} almak için geldim, fiyatınız nedir?",
+                "Merhaba. Çeyizim için {A} {B} satın almak istiyorum.",
+                "Günaydın. {A} {B} satın almak istiyorum, ne kadar eder?",
             ],
-            dual: [
+            singleSell: [
+                "Selamünaleyküm usta. {A} adet {B} satmak istiyorum, ne verirsiniz?",
+                "Kolay gelsin. Elimde {A} {B} var, satmak istiyorum.",
+                "Selamlar usta. {A} {B} bozduruyorum, ne verirsiniz?",
+                "Günaydın. {A} adet {B} satacağım, ne kadar alırsınız?",
+                "Merhaba. Elimde {A} {B} var, ne kadar alırsınız?",
+                "Kolay gelsin. {A} {B} satacağım, bugün fiyatınız ne?",
+                "Selamünaleyküm. {A} {B} satmak istiyorum, adil fiyat verir misiniz?",
+            ],
+            dualBuy: [
                 "Merhaba. {A} {B} ve {C} {D} almak istiyorum, fiyat ne olur?",
                 "Kolay gelsin. {A} {B} ile {C} {D} almak istiyorum.",
-                "Günaydın. {A} {B} ve {C} {D} için fiyatınız nedir?",
                 "Selamünaleyküm. Hem {A} {B} hem de {C} {D} almak istiyorum.",
-                "Merhaba. Elimde {A} {B} ve {C} {D} var, satabilir miyim?",
-                "Kolay gelsin. {A} {B} ile {C} {D} toplam ne kadar tutar?",
                 "Merhaba. {A} {B} ve {C} {D} istiyorum, en iyi fiyat nedir?",
-                "Günaydın. {A} {B} ve {C} {D} bozdurmak istiyorum.",
-                "Kolay gelsin. {A} {B} ile {C} {D} için teklifiniz nedir?",
                 "Merhaba. {A} {B} ve {C} {D} almak için geldim.",
+            ],
+            dualSell: [
+                "Merhaba. Elimde {A} {B} ve {C} {D} var, satabilir miyim?",
+                "Günaydın. {A} {B} ve {C} {D} bozduruyorum, ne verirsiniz?",
+                "Kolay gelsin. {A} {B} ile {C} {D} satacağım, teklifiniz nedir?",
+                "Selamünaleyküm. {A} {B} ve {C} {D} satmak istiyorum, fiyat nedir?",
+                "Merhaba. {A} {B} ile {C} {D} var elimde, alır mısınız?",
             ]
         ),
 
-        // TUTUMLU — fiyat odaklı, indirim arayan, taahhüt vermeden önce sorar
+        // TUTUMLU — fiyat odaklı, indirim arayan
         .frugal: (
-            single: [
-                "Hayırlı işler. {A} {B} için en uygun fiyatınız nedir?",
-                "Merhaba. {A} {B} şu an kaç lira, özel fiyatınız var mı?",
+            singleBuy: [
+                "Hayırlı işler. {A} {B} almak istiyorum, en uygun fiyatınız nedir?",
                 "Günaydın. {A} {B} almak istiyorum, önce fiyatı öğreneyim.",
-                "Hayırlı işler. {A} {B} için biraz indirim yapar mısınız?",
-                "Merhaba. {A} {B} ne kadar, başka yerde daha ucuza baktım.",
-                "Günaydın. {A} {B} satmak istiyorum, en iyi fiyatı siz verin.",
                 "Hayırlı işler. {A} {B} almak istiyorum, fiyatta anlaşabilir miyiz?",
                 "Merhaba. {A} adet {B} için makul bir fiyat olur mu?",
-                "Günaydın. {A} {B} bozdurmak istiyorum, kaç para verirsiniz?",
-                "Hayırlı işler. {A} {B} ne kadar yapar, pahalı gelirse almam.",
-                "Merhaba. {A} {B} satacağım, en iyi teklifiniz nedir?",
                 "Günaydın. Fiyatı uygunsa {A} {B} alacağım, ne dersiniz?",
                 "Hayırlı işler. {A} {B} için biraz daha iyi fiyat verebilir misiniz?",
-                "Merhaba. {A} {B} almak istiyorum, son fiyatınız nedir?",
-                "Günaydın. {A} {B} için fiyat verir misiniz, düşüneyim.",
+                "Merhaba. {A} {B} almak istiyorum, son satış fiyatınız nedir?",
             ],
-            dual: [
-                "Hayırlı işler. {A} {B} ve {C} {D} alacağım, toplam indirim yapar mısınız?",
-                "Merhaba. {A} {B} ile {C} {D} toplam ne kadar tutar?",
+            singleSell: [
+                "Günaydın. {A} {B} satacağım, en iyi fiyatı siz verin.",
+                "Hayırlı işler. {A} {B} bozduruyorum, kaç para verirsiniz?",
+                "Merhaba. {A} {B} satmak istiyorum, en iyi teklifiniz nedir?",
+                "Günaydın. Elimde {A} {B} var, ne kadar alırsınız?",
+                "Hayırlı işler. {A} {B} satacağım, fiyat verin bir bakayım.",
+                "Merhaba. {A} {B} satmak istiyorum, iyi fiyat verir misiniz?",
+            ],
+            dualBuy: [
+                "Hayırlı işler. {A} {B} ve {C} {D} alacağım, indirim yapar mısınız?",
                 "Günaydın. {A} {B} ve {C} {D} almak istiyorum, paket fiyat olur mu?",
-                "Hayırlı işler. {A} {B} ve {C} {D} için en iyi teklifiniz nedir?",
-                "Merhaba. {A} {B} ile {C} {D} alırsam indirim yapar mısınız?",
-                "Günaydın. {A} {B} ve {C} {D} istiyorum ama bütçem kısıtlı.",
-                "Hayırlı işler. {A} {B} ile {C} {D} toplam kaç lira eder?",
-                "Merhaba. {A} {B} ve {C} {D} satmak istiyorum, ne verirsiniz?",
-                "Günaydın. {A} {B} ve {C} {D} için uygun teklif nedir?",
                 "Hayırlı işler. {A} {B} ile {C} {D} alacağım, toptan indirim olur mu?",
+                "Merhaba. {A} {B} ve {C} {D} almak istiyorum, bütçem kısıtlı.",
+                "Günaydın. {A} {B} ile {C} {D} alırsam indirim yapar mısınız?",
+            ],
+            dualSell: [
+                "Hayırlı işler. {A} {B} ve {C} {D} satacağım, ne verirsiniz?",
+                "Günaydın. {A} {B} ve {C} {D} bozduruyorum, toplam ne kadar eder?",
+                "Merhaba. Elimde {A} {B} ve {C} {D} var, uygun teklif nedir?",
+                "Hayırlı işler. {A} {B} ile {C} {D} satmak istiyorum, fiyat verin.",
+                "Günaydın. {A} {B} ve {C} {D} satacağım, iyi alırsanız getiririm.",
             ]
         ),
 
         // CÖMERT — sıcak, etkinlik odaklı, fiyata duyarsız
         .generous: (
-            single: [
-                "Selamlar. {A} {B} istiyorum size zahmet, güzel seçin.",
+            singleBuy: [
+                "Selamlar. {A} {B} almak istiyorum, en güzeli olsun.",
                 "Merhaba. Düğün hediyesi için {A} {B} almak istiyorum.",
                 "Günaydın. Kızıma sürpriz için {A} {B} alabilir miyim?",
-                "Selamlar. {A} {B} istiyorum, en güzeli olsun.",
-                "Merhaba. Annem için {A} {B} alacağım, hayırlısı olsun.",
-                "Günaydın. {A} {B} almak istiyorum, kaliteli olsun yeter.",
-                "Selamlar. Hayırlısı ile {A} {B} almak istiyorum.",
+                "Selamlar. Annem için {A} {B} alacağım, hayırlısı olsun.",
                 "Merhaba. Nişan hediyesi için {A} {B} alacağım.",
-                "Günaydın. {A} {B} bozdurmak istiyorum, kolay gelsin.",
-                "Selamlar. Oğlumun hediyesi için {A} {B} istiyorum.",
-                "Merhaba. Elimde {A} {B} var, satmak istiyorum.",
-                "Günaydın. Bayrama özel {A} {B} almak istiyorum.",
-                "Selamlar. {A} {B} istiyorum, verebilir misiniz?",
-                "Merhaba. Torunum için {A} {B} alacağım, hayırlı olsun.",
-                "Günaydın. {A} {B} satmak istiyorum, adil fiyat verin.",
+                "Günaydın. Torunum için {A} {B} alacağım, hayırlı olsun.",
+                "Selamlar. Bayrama özel {A} {B} almak istiyorum.",
+                "Merhaba. {A} {B} almak istiyorum, kaliteli olsun yeter.",
             ],
-            dual: [
-                "Selamlar. {A} {B} ile {C} {D} istiyorum size zahmet.",
+            singleSell: [
+                "Merhaba. Elimde {A} {B} var, satmak istiyorum.",
+                "Günaydın. {A} {B} bozduruyorum, adil fiyat verin.",
+                "Selamlar. {A} {B} satmak istiyorum, değerince alın.",
+                "Merhaba. {A} {B} satacağım, iyi fiyat verir misiniz?",
+                "Günaydın. Elimde {A} {B} var, hayırlı satış olsun.",
+            ],
+            dualBuy: [
+                "Selamlar. {A} {B} ile {C} {D} almak istiyorum, güzel seçin.",
                 "Merhaba. Çeyiz için {A} {B} ve {C} {D} almak istiyorum.",
                 "Günaydın. Hem {A} {B} hem {C} {D} alacağım, iyi seçin.",
                 "Selamlar. {A} {B} ve {C} {D} istiyorum, fiyatı sizin bildiğiniz.",
-                "Merhaba. {A} {B} ile {C} {D} almak istiyorum, güzel olsun.",
-                "Günaydın. Düğün takısı için {A} {B} ve {C} {D} lazım.",
-                "Selamlar. {A} {B} ve {C} {D} alacağım, en iyisinden.",
-                "Merhaba. {A} {B} ile {C} {D} satmak istiyorum, değerince alın.",
-                "Günaydın. {A} {B} ve {C} {D} istiyorum, hayırlısı olsun.",
-                "Selamlar. Hem {A} {B} hem de {C} {D} alacağım.",
+                "Merhaba. Düğün takısı için {A} {B} ve {C} {D} lazım.",
+            ],
+            dualSell: [
+                "Selamlar. {A} {B} ile {C} {D} satacağım, değerince alın.",
+                "Merhaba. Elimde {A} {B} ve {C} {D} var, satmak istiyorum.",
+                "Günaydın. {A} {B} ve {C} {D} bozduruyorum, adil fiyat verin.",
+                "Selamlar. {A} {B} ve {C} {D} satmak istiyorum, hayırlısı olsun.",
+                "Merhaba. {A} {B} ile {C} {D} var elimde, alır mısınız?",
             ]
         ),
 
-        // ACİL — kısa, doğrudan, sabırsız, zaman kaybetmiyor
+        // ACİL — kısa, doğrudan, sabırsız
         .urgent: (
-            single: [
-                "Merhaba. {A} {B} fiyatı ne kadar?",
-                "Acele var. {A} {B} ne kadar?",
-                "{A} {B} satıyor musunuz, kaç para?",
+            singleBuy: [
+                "Merhaba. {A} {B} almak istiyorum, ne kadar?",
+                "Acele var. {A} {B} satıyor musunuz, kaç para?",
                 "Hızlı olalım. {A} {B} almak istiyorum.",
-                "{A} tane {B}, kaç lira eder?",
-                "Çabuk olsun. {A} {B} istiyorum.",
-                "{A} {B} bozdurmak istiyorum, şimdi halledelim.",
-                "Vakit yok. {A} {B} var mı elinizde?",
-                "{A} {B} kaç para, hemen alalım.",
-                "Hemen {A} {B} almak istiyorum, fiyat?",
-                "{A} {B} satacağım, kaç verirsiniz?",
-                "Acelem var, {A} {B} istiyorum, söyleyin.",
-                "Çabuk bakar mısınız, {A} {B} alacağım.",
-                "{A} {B} ne kadar, hızlı söyleyin.",
-                "Hızlı olalım. {A} {B} satmak istiyorum.",
+                "{A} tane {B} alacağım, kaç lira?",
+                "Çabuk olsun. {A} {B} alacağım, fiyat ne?",
+                "Vakit yok. {A} {B} var mı elinizde, alıyorum.",
+                "Hemen {A} {B} almak istiyorum, fiyat söyleyin.",
             ],
-            dual: [
-                "{A} {B} ve {C} {D}, toplam ne kadar?",
-                "Hızlı olsun. {A} {B} ile {C} {D} istiyorum.",
-                "{A} {B} ve {C} {D} alacağım, kaç para?",
-                "Acelem var. {A} {B} ile {C} {D} ne kadar?",
-                "Çabuk bakar mısınız, {A} {B} ve {C} {D} istiyorum.",
-                "{A} {B} ve {C} {D} toplam fiyat nedir?",
-                "Hızlı olalım. {A} {B} ve {C} {D} satacağım.",
+            singleSell: [
+                "Acelem var. {A} {B} satacağım, kaç verirsiniz?",
+                "{A} {B} bozduruyorum, hemen halledelim.",
+                "Hızlı olalım. {A} {B} satmak istiyorum.",
+                "{A} {B} satacağım, kaç para, çabuk söyleyin.",
+                "Acelem var, {A} {B} satacağım, teklif verin.",
+                "Hızlı olsun. Elimde {A} {B} var, alır mısınız?",
+            ],
+            dualBuy: [
+                "{A} {B} ve {C} {D} alacağım, toplam ne kadar?",
+                "Hızlı olsun. {A} {B} ile {C} {D} almak istiyorum.",
+                "Acelem var. {A} {B} ile {C} {D} alacağım, ne kadar?",
+                "Çabuk bakar mısınız, {A} {B} ve {C} {D} alacağım.",
                 "{A} {B} ile {C} {D} istiyorum, hızlıca halledelim.",
-                "Acele var. {A} {B} ve {C} {D} alacağım.",
-                "{A} {B} ile {C} {D}, fiyatı söyleyin hemen.",
+            ],
+            dualSell: [
+                "{A} {B} ve {C} {D} satacağım, toplam ne verirsiniz?",
+                "Hızlı olalım. {A} {B} ve {C} {D} bozduruyorum.",
+                "Acele var. {A} {B} ile {C} {D} satacağım, fiyat?",
+                "{A} {B} ve {C} {D} satacağım, hızlıca söyleyin.",
+                "Çabuk bakar mısınız, {A} {B} ve {C} {D} satacağım.",
             ]
         ),
 
         // TURİST — sade Türkçe, meraklı, arkadaşça
         .tourist: (
-            single: [
+            singleBuy: [
                 "İyi günler. {A} tane {B} alabilir miyim, ne kadar?",
                 "Merhaba. {A} {B} ne kadar lira?",
                 "Selam. {A} adet {B} almak istiyorum. Mümkün mü?",
                 "İyi günler. {A} tane {B} almak istiyorum.",
-                "Merhaba. {A} {B} için fiyat ne kadar?",
                 "Selam. {A} tane {B} satabilir misiniz bana?",
                 "İyi günler. Ben {A} {B} almak istiyorum, tamam mı?",
                 "Merhaba. {A} adet {B} istiyorum, kaç para?",
                 "Selam. {A} {B} alıyorum, ne kadar öderim?",
-                "İyi günler. {A} tane {B} satılık var mı burada?",
-                "Merhaba. {A} {B} için ne kadar fiyat istiyorsunuz?",
-                "Selam. Ben {A} adet {B} almak istiyorum, lütfen.",
-                "İyi günler. {A} {B} çok pahalı mı burada?",
-                "Merhaba. {A} tane {B} verir misiniz, lütfen?",
-                "Selam. {A} {B} satıyorsunuz değil mi, kaç para?",
             ],
-            dual: [
+            singleSell: [
+                "İyi günler. {A} tane {B} satmak istiyorum. Alır mısınız?",
+                "Merhaba. Elimde {A} {B} var, ne kadar verirsiniz?",
+                "Selam. {A} {B} bozdurabilir miyim burada?",
+                "İyi günler. {A} {B} satıyorum, ne kadar alırsınız?",
+                "Merhaba. {A} adet {B} satmak istiyorum, kaç para?",
+            ],
+            dualBuy: [
                 "İyi günler. {A} {B} ve {C} {D} almak istiyorum, kaç lira?",
                 "Merhaba. {A} {B} ile {C} {D}, toplam ne kadar?",
-                "Selam. {A} tane {B} ve {C} tane {D} istiyorum.",
+                "Selam. {A} tane {B} ve {C} tane {D} almak istiyorum.",
                 "İyi günler. {A} {B} ve {C} {D} alabilir miyim?",
-                "Merhaba. Hem {A} {B} hem {C} {D} almak istiyorum.",
-                "Selam. {A} {B} ile {C} {D}, fiyat ne kadar?",
-                "İyi günler. {A} {B} ve {C} {D} için ödeme ne kadar?",
-                "Merhaba. {A} {B} ve {C} {D} satıyor musunuz?",
                 "Selam. {A} {B} ile {C} {D} almak mümkün mü?",
-                "İyi günler. {A} tane {B} ve {C} tane {D} lütfen.",
+            ],
+            dualSell: [
+                "İyi günler. {A} {B} ve {C} {D} satmak istiyorum. Alır mısınız?",
+                "Merhaba. Elimde {A} {B} ve {C} {D} var, ne verirsiniz?",
+                "Selam. {A} {B} ile {C} {D} bozdurabilir miyim?",
+                "İyi günler. {A} {B} ve {C} {D} satıyorum, ne kadar alırsınız?",
+                "Merhaba. {A} tane {B} ve {C} tane {D} satmak istiyorum.",
             ]
         ),
 
         // VIP — buyurgan, kendinden emin, en iyisini bekliyor
         .vip: (
-            single: [
-                "Selam. Acelem var. {A} {B} ayarlar mısın benim için?",
-                "Merhaba. {A} tane {B} istiyorum, en iyisinden olsun.",
-                "Selam. {A} {B} al bana, hemen halledelim.",
-                "Merhaba. {A} adet {B} istiyorum, kalitesinden emin ol.",
-                "Selam. {A} {B} bozdurmam lazım, halleder misin?",
+            singleBuy: [
+                "Selam. {A} tane {B} istiyorum, en iyisinden olsun.",
+                "Merhaba. {A} {B} al bana, hemen halledelim.",
+                "Selam. {A} adet {B} istiyorum, kalitesinden emin ol.",
                 "Merhaba. {A} {B} var mı, iyi ise alıyorum.",
-                "Selam. {A} {B} için fiyat ver, karar vereyim.",
-                "Merhaba. {A} adet {B} ayarla, başka işlerim var.",
-                "Selam. {A} {B} satmak istiyorum, iyi fiyat ver.",
-                "Merhaba. {A} tane {B} istiyorum, kaliteli olsun.",
                 "Selam. {A} {B} lazım, ayarlayabilir misin?",
                 "Merhaba. {A} {B} alacağım, en kalitelisi olsun.",
-                "Selam. {A} {B} var mı, hemen söyle.",
-                "Merhaba. {A} adet {B} istiyorum, hızlı halledelim.",
-                "Selam. {A} {B} bozduracağım, ne veriyorsun?",
+                "Selam. {A} adet {B} istiyorum, hızlı halledelim.",
+                "Merhaba. {A} tane {B} almak istiyorum, kaliteli olsun.",
             ],
-            dual: [
+            singleSell: [
+                "Selam. {A} {B} satmak istiyorum, iyi fiyat ver.",
+                "Merhaba. {A} {B} bozduruyorum, ne veriyorsun?",
+                "Selam. {A} {B} satacağım, teklifini söyle.",
+                "Merhaba. Elimde {A} {B} var, alırsın mı?",
+                "Selam. {A} adet {B} satacağım, en iyi fiyatı ver.",
+            ],
+            dualBuy: [
                 "Selam. {A} {B} ile {C} {D} istiyorum, ikisini de ayarla.",
                 "Merhaba. {A} {B} ve {C} {D} al bana, en iyisi.",
                 "Selam. {A} {B} ile {C} {D} istiyorum, hızlı olsun.",
                 "Merhaba. {A} {B} ve {C} {D} ayarlar mısın benim için?",
-                "Selam. {A} {B} ile {C} {D} için fiyat ver, halledelim.",
-                "Merhaba. {A} {B} ve {C} {D} istiyorum, en iyisinden.",
                 "Selam. Hem {A} {B} hem {C} {D} lazım, halleder misin?",
+            ],
+            dualSell: [
                 "Merhaba. {A} {B} ile {C} {D} satacağım, iyi fiyat ver.",
                 "Selam. {A} {B} ve {C} {D} için teklifini söyle.",
-                "Merhaba. {A} {B} ile {C} {D} istiyorum, çabuk halledelim.",
+                "Merhaba. Elimde {A} {B} ve {C} {D} var, alır mısın?",
+                "Selam. {A} {B} ile {C} {D} bozduruyorum, ne veriyorsun?",
+                "Merhaba. {A} {B} ve {C} {D} satacağım, iyi fiyat ver.",
             ]
         ),
     ]
@@ -506,9 +522,14 @@ enum CustomerLibrary {
             ? [item1, RequestItem(productCategory: cat2, quantity: Double(qty2), label: requestLabel(qty: qty2, cat: cat2))]
             : [item1]
 
-        // 7. Diyalog şablonu doldur (tipe göre)
+        // 7. Diyalog şablonu doldur (tipe ve yöne göre)
         let typeDials = Self.dialogues[pickedType] ?? Self.dialogues[.regular]!
-        let pool2 = slots == 2 ? typeDials.dual : typeDials.single
+        let pool2: [String]
+        if slots == 2 {
+            pool2 = dir == .customerBuysFromPlayer ? typeDials.dualBuy : typeDials.dualSell
+        } else {
+            pool2 = dir == .customerBuysFromPlayer ? typeDials.singleBuy : typeDials.singleSell
+        }
         var dialogue = pool2.randomElement() ?? "{A} {B} istiyorum."
         dialogue = dialogue
             .replacingOccurrences(of: "{A}", with: "\(qty1)")

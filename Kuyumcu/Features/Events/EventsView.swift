@@ -47,7 +47,7 @@ struct EventsView: View {
     private func eventDetailCard(event: GameEvent, isActive: Bool) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Image(systemName: event.eventType.icon)
+                Image(systemName: event.icon)
                     .font(.title2)
                     .foregroundColor(eventColor(event))
                 VStack(alignment: .leading, spacing: 2) {
@@ -93,12 +93,13 @@ struct EventsView: View {
     }
 
     private func eventColor(_ event: GameEvent) -> Color {
-        switch event.eventType {
-        case .weddingSeason:  return .pink
-        case .holiday:        return .orange
-        case .touristSeason:  return .blue
-        case .promotionWeek:  return .gdlPositive
-        case .financeNews:    return .gdlNegative
+        switch event.accentColorName {
+        case "pink":   return .pink
+        case "orange": return .orange
+        case "blue":   return .blue
+        case "green":  return .gdlPositive
+        case "red":    return .gdlNegative
+        default:       return .gdlGold
         }
     }
 }

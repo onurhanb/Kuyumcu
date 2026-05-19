@@ -26,20 +26,16 @@ class RateFetchService {
     static let shared = RateFetchService()
     private let lastFetchKey = "rateFetchDate_v3"
 
-    // Türkiye saatiyle bugün 08:00'dan sonra çekildi mi?
-    // TODO: Canlıya alınca aşağıdaki mantığı aç, geçici satırı kaldır.
+    // Türkiye saatiyle bugün 08:00'dan sonra en az bir kez çekildi mi?
     func shouldFetch() -> Bool {
-        return true  // Geçici: her girişte çek (test modu)
-
-        // --- Canlı mantık (test sonrası aktif et) ---
-        // guard let last = UserDefaults.standard.object(forKey: lastFetchKey) as? Date else { return true }
-        // var cal = Calendar(identifier: .gregorian)
-        // cal.timeZone = TimeZone(identifier: "Europe/Istanbul") ?? .current
-        // if !cal.isDateInToday(last) { return true }
-        // let lastHour = cal.component(.hour, from: last)
-        // let nowHour  = cal.component(.hour, from: Date())
-        // if nowHour >= 8 && lastHour < 8 { return true }
-        // return false
+        guard let last = UserDefaults.standard.object(forKey: lastFetchKey) as? Date else { return true }
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "Europe/Istanbul") ?? .current
+        if !cal.isDateInToday(last) { return true }
+        let lastHour = cal.component(.hour, from: last)
+        let nowHour  = cal.component(.hour, from: Date())
+        if nowHour >= 8 && lastHour < 8 { return true }
+        return false
     }
 
     func fetchRates() async throws -> FetchedRates {

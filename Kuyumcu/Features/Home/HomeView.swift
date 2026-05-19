@@ -12,10 +12,11 @@ private let infoTips: [(icon: String, text: String)] = [
 
 struct HomeView: View {
     @EnvironmentObject var gameState: GameState
-    @State private var showCounter     = false
-    @State private var showIncomeAlert = false
-    @State private var tipIndex        = Int.random(in: 0..<infoTips.count)
-    @State private var rankingTab      = 0
+    @State private var showCounter      = false
+    @State private var showIncomeAlert  = false
+    @State private var showDailyReward  = false
+    @State private var tipIndex         = Int.random(in: 0..<infoTips.count)
+    @State private var rankingTab       = 0
 
     // Kur ticker metni
     private var ratesTickerText: String {
@@ -37,14 +38,34 @@ struct HomeView: View {
         return items.joined(separator: "     ")
     }
 
-    // Fiyat verisinin tarihi (API'den gelir); henüz yüklenmemişse bugünün tarihi
+    // Fiyat verisinin tarihi (API'den gelir); "19 Mayıs 2026" formatında
     private var ratesDateString: String {
-        let d = gameState.rates.first?.sourceDate ?? ""
-        if !d.isEmpty { return d }
-        let fmt = DateFormatter()
-        fmt.locale = Locale(identifier: "tr_TR")
-        fmt.dateFormat = "d MMMM yyyy"
-        return fmt.string(from: Date())
+        let raw = gameState.rates.first?.sourceDate ?? ""
+        let displayFmt = DateFormatter()
+        displayFmt.locale = Locale(identifier: "tr_TR")
+        displayFmt.timeZone = TimeZone(identifier: "Europe/Istanbul")
+        displayFmt.dateFormat = "d MMMM yyyy"
+        let isoFmt = ISO8601DateFormatter()
+        isoFmt.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = isoFmt.date(from: raw) {
+            return displayFmt.string(from: date)
+        }
+        return displayFmt.string(from: Date())
+    }
+
+    // Fiyat güncellenme zamanı; "19 Mayıs 2026 • 08:00" formatında
+    private var ratesTimestampString: String {
+        let raw = gameState.rates.first?.sourceDate ?? ""
+        let displayFmt = DateFormatter()
+        displayFmt.locale = Locale(identifier: "tr_TR")
+        displayFmt.timeZone = TimeZone(identifier: "Europe/Istanbul")
+        displayFmt.dateFormat = "d MMMM yyyy • HH:mm"
+        let isoFmt = ISO8601DateFormatter()
+        isoFmt.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = isoFmt.date(from: raw) {
+            return displayFmt.string(from: date)
+        }
+        return ""
     }
 
     var body: some View {
@@ -85,6 +106,15 @@ struct HomeView: View {
         .fullScreenCover(isPresented: $showCounter) {
             CounterView().environmentObject(gameState)
         }
+        .overlay {
+            if showDailyReward {
+                DailyRewardView(isPresented: $showDailyReward)
+                    .environmentObject(gameState)
+                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                    .zIndex(10)
+            }
+        }
+        .animation(.easeInOut(duration: 0.2), value: showDailyReward)
         .alert("Gelir Toplandı!", isPresented: $showIncomeAlert) {
             Button("Harika!", role: .cancel) {}
         } message: {
@@ -121,17 +151,35 @@ struct HomeView: View {
                 )
                 .frame(height: 185)
 
-                // Sol üst: tarih kutucuğu
+                // Üst satır: sol tarih, sağ günlük ödül
                 VStack {
                     HStack {
-                        Text(ratesDateString)
-                            .font(.system(size: 13, weight: .medium, design: .rounded))
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Color.black.opacity(0.45))
-                            .cornerRadius(7)
+                        HStack(spacing: 4) {
+                            Image(systemName: "calendar")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundColor(.white)
+                            Text(ratesDateString)
+                                .font(.system(size: 13, weight: .medium, design: .rounded))
+                                .foregroundColor(.white)
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.black.opacity(0.45))
+                        .cornerRadius(7)
                         Spacer()
+                        Button { showDailyReward = true } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "gift.fill")
+                                    .font(.system(size: 11))
+                                Text("Günlük Ödül")
+                                    .font(.system(size: 11, weight: .semibold))
+                            }
+                            .foregroundColor(.black)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 6)
+                            .background(Color.gdlGold)
+                            .cornerRadius(7)
+                        }
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, 14)
@@ -162,8 +210,8 @@ struct HomeView: View {
 
             // Alt: 3×2 stat grid
             HStack(spacing: 0) {
-                statCell(label: "Nakit",       value: FormatUtils.tl(gameState.playerCash),    icon: "turkishlirasign.circle.fill", color: .gdlGold,   trailing: true)
-                statCell(label: "Net Değer",   value: FormatUtils.tl(gameState.totalNetWorth), icon: "chart.bar.fill",               color: .gdlTextPrimary, trailing: false)
+                statCell(label: "Net Değer",   value: FormatUtils.tl(gameState.totalNetWorth), icon: "chart.bar.fill",               color: .gdlGold,        trailing: true)
+                statCell(label: "Nakit",       value: FormatUtils.tl(gameState.playerCash),    icon: "turkishlirasign.circle.fill", color: .gdlTextPrimary, trailing: false)
             }
             HStack(spacing: 0) {
                 statCell(label: "Günlük Kâr", value: FormatUtils.tl(gameState.dailyProfit),   icon: "arrow.up.right",               color: gameState.dailyProfit >= 0 ? .gdlPositive : .gdlNegative, trailing: true)
@@ -299,57 +347,61 @@ struct HomeView: View {
     }
 
     private func shopRow(shop: Shop) -> some View {
-        Button {
-            gameState.enterShop(shop)
-            showCounter = true
-        } label: {
-            HStack(spacing: 12) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(Color.gdlGold.opacity(0.15))
-                        .frame(width: 44, height: 44)
-                    Image(systemName: shop.locationType.icon)
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(.gdlGold)
+        let accumulated = gameState.shopAccumulatedIncome[shop.name] ?? 0
+        return HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Color.gdlGold.opacity(0.15))
+                    .frame(width: 44, height: 44)
+                Image(systemName: shop.locationType.icon)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(.gdlGold)
+            }
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(shop.name)
+                    .font(.gdlBody())
+                    .foregroundColor(.gdlTextPrimary)
+                HStack(spacing: 5) {
+                    Image(systemName: "person.fill")
+                        .font(.system(size: 9))
+                        .foregroundColor(.gdlTextSecondary)
+                    Text("\(shop.employeeCount)/\(shop.employeeCapacity) personel")
+                        .font(.gdlCaption())
+                        .foregroundColor(.gdlTextSecondary)
+                    Text("·").foregroundColor(.gdlTextSecondary).font(.caption)
+                    Text("₺\(Int(shop.locationType.passiveTick))/10sn")
+                        .font(.gdlCaption())
+                        .foregroundColor(.gdlTextSecondary)
                 }
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(shop.name)
-                        .font(.gdlBody())
-                        .foregroundColor(.gdlTextPrimary)
-                    HStack(spacing: 5) {
-                        Image(systemName: "person.fill")
+                HStack(spacing: 4) {
+                    if gameState.passiveIncomeCollectedToday && accumulated == 0 {
+                        Image(systemName: "checkmark.circle.fill")
                             .font(.system(size: 9))
-                            .foregroundColor(.gdlTextSecondary)
-                        Text("\(shop.employeeCount)/\(shop.employeeCapacity) personel")
+                            .foregroundColor(.gdlPositive)
+                        Text("Bugün toplandı")
                             .font(.gdlCaption())
                             .foregroundColor(.gdlTextSecondary)
-                        Text("·").foregroundColor(.gdlTextSecondary).font(.caption)
-                        Text("₺\(FormatUtils.compact(shop.dailyPassiveBaseIncome))/gün")
-                            .font(.gdlCaption())
-                            .foregroundColor(.gdlTextSecondary)
-                    }
-                    HStack(spacing: 5) {
-                        Image(systemName: "person.3.fill")
+                    } else {
+                        Image(systemName: "arrow.up.right.circle.fill")
                             .font(.system(size: 9))
-                            .foregroundColor(.gdlTextSecondary)
-                        let served = shop.id == gameState.activeShop?.id ? gameState.customersServedToday : 0
-                        Text("\(served)/\(shop.locationType.dailyCustomerLimit) müşteri")
-                            .font(.gdlCaption())
-                            .foregroundColor(.gdlTextSecondary)
-                        Text("·").foregroundColor(.gdlTextSecondary).font(.caption)
-                        Image(systemName: "person.badge.clock.fill")
-                            .font(.system(size: 9))
-                            .foregroundColor(.gdlTextSecondary)
-                        Text("\(shop.locationType.queueCapacity) sıra")
-                            .font(.gdlCaption())
-                            .foregroundColor(.gdlTextSecondary)
+                            .foregroundColor(.gdlGold)
+                        Text("Kazanç: \(FormatUtils.tl(accumulated))")
+                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                            .foregroundColor(.gdlGold)
+                            .contentTransition(.numericText())
+                            .animation(.easeInOut(duration: 0.5), value: accumulated)
                     }
                 }
+            }
 
-                Spacer()
+            Spacer()
 
-                HStack(spacing: 6) {
+            HStack(spacing: 6) {
+                Button {
+                    gameState.enterShop(shop)
+                    showCounter = true
+                } label: {
                     Text("Gir")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundColor(.black)
@@ -358,12 +410,11 @@ struct HomeView: View {
                         .background(Color.gdlGold)
                         .cornerRadius(8)
                 }
+                .buttonStyle(.plain)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
     }
 
     private var passiveIncomeRow: some View {
@@ -389,7 +440,7 @@ struct HomeView: View {
                     .background(gameState.passiveIncomeCollectedToday ? Color.gdlCardSecondary : Color.gdlGold)
                     .cornerRadius(10)
             }
-            .disabled(gameState.passiveIncomeCollectedToday)
+            .disabled(gameState.passiveIncomeCollectedToday || gameState.passiveIncomeAvailable == 0)
         }
     }
 
@@ -401,7 +452,7 @@ struct HomeView: View {
                 Image(systemName: "chart.line.uptrend.xyaxis").foregroundColor(.gdlGold).font(.subheadline)
                 Text("Güncel Kurlar").font(.gdlHeadline()).foregroundColor(.gdlTextPrimary)
                 Spacer()
-                Text(gameState.rates.first?.sourceDate ?? "")
+                Text(ratesTimestampString)
                     .font(.gdlCaption())
                     .foregroundColor(.gdlTextSecondary)
             }
@@ -430,7 +481,7 @@ struct HomeView: View {
             }
             .padding(.vertical, 4)
 
-            Text("* Fiyat verileri genelpara.com adresinden alınmaktadır.")
+            Text("* Fiyat verileri finans.truncgil.com adresinden alınmaktadır.")
                 .font(.system(size: 10))
                 .foregroundColor(.gdlTextSecondary)
                 .padding(.horizontal, 16)
@@ -462,23 +513,7 @@ struct HomeView: View {
     private var rankingCard: some View {
         let tabs = ["Toplam Servet", "Toplam Nakit", "Yaşam Puanı"]
 
-        let allEntries: [LeaderboardEntry] = {
-            var list = MockGameData.mockLeaderboard
-            list.append(rankingPlayerEntry)
-            return list
-        }()
-
-        let sorted: [LeaderboardEntry] = {
-            switch rankingTab {
-            case 1:  return allEntries.sorted { $0.cashBalance    > $1.cashBalance }
-            case 2:  return allEntries.sorted { $0.lifestylePoints > $1.lifestylePoints }
-            default: return allEntries.sorted { $0.netWorth       > $1.netWorth }
-            }
-        }()
-
-        let playerRank  = (sorted.firstIndex(where: { $0.isPlayer }) ?? 0) + 1
-        let top10       = Array(sorted.prefix(10))
-        let playerInTop = playerRank <= 10
+        let top10       = [rankingPlayerEntry]
 
         return VStack(alignment: .leading, spacing: 0) {
             // Başlık
@@ -523,18 +558,11 @@ struct HomeView: View {
                 }
             }
 
-            // Oyuncu ilk 10'da değilse ayrıca göster
-            if !playerInTop {
-                HStack {
-                    Image(systemName: "ellipsis")
-                        .font(.system(size: 11))
-                        .foregroundColor(.gdlTextSecondary)
-                }
+            Text("Çevrimiçi sıralama yakında aktif olacak.")
+                .font(.gdlCaption())
+                .foregroundColor(.gdlTextSecondary)
                 .padding(.horizontal, 16)
-                .padding(.vertical, 6)
-                Divider().background(Color.gdlDivider).padding(.leading, 58)
-                rankingRow(rank: playerRank, entry: rankingPlayerEntry, tab: rankingTab)
-            }
+                .padding(.bottom, 10)
         }
         .background(Color.gdlCard)
         .cornerRadius(16)
@@ -589,12 +617,9 @@ struct HomeView: View {
 
     private func rateCell(rate: Rate, trailing: Bool) -> some View {
         let spotPrice = (rate.buyPrice + rate.sellPrice) / 2
-        let prevPrice = gameState.previousRatePrices[rate.type] ?? 0
         let isGold    = rate.type.hasSuffix("Gold")
         let priceText = isGold ? FormatUtils.tl(spotPrice) : String(format: "₺%.2f", spotPrice)
-        let changeDir: Int = prevPrice > 0
-            ? (spotPrice > prevPrice * 1.001 ? 1 : spotPrice < prevPrice * 0.999 ? -1 : 0)
-            : 0
+        let changeDir = rate.changeDir
 
         return HStack(spacing: 8) {
             Image(systemName: rateIcon(for: rate.type))
@@ -619,6 +644,10 @@ struct HomeView: View {
                         Image(systemName: "arrow.down")
                             .font(.system(size: 9, weight: .bold))
                             .foregroundColor(.gdlNegative)
+                    } else {
+                        Image(systemName: "minus")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundColor(.gdlGold)
                     }
                 }
             }

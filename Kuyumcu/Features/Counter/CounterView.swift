@@ -346,6 +346,7 @@ struct CounterView: View {
 
                     Spacer()
                 }
+                .padding(.leading, 8)
                 .frame(width: leftW)
             }
         }

@@ -125,18 +125,19 @@ struct EventBanner: View {
     let event: GameEvent
 
     private var accent: Color {
-        switch event.eventType {
-        case .weddingSeason:  return Color.pink
-        case .holiday:        return Color.orange
-        case .touristSeason:  return Color.blue
-        case .promotionWeek:  return .gdlPositive
-        case .financeNews:    return .gdlNegative
+        switch event.accentColorName {
+        case "pink":   return .pink
+        case "orange": return .orange
+        case "blue":   return .blue
+        case "green":  return .gdlPositive
+        case "red":    return .gdlNegative
+        default:       return .gdlGold
         }
     }
 
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: event.eventType.icon)
+            Image(systemName: event.icon)
                 .font(.title3)
                 .foregroundColor(accent)
                 .frame(width: 32)
@@ -241,23 +242,8 @@ struct ShopCard: View {
                 if !shop.isOwned {
                     shopStat(label: "Fiyat", value: FormatUtils.tlCompact(shop.purchasePrice), color: canAfford ? .gdlGold : .gdlNegative)
                 }
-                shopStat(label: "Günlük", value: FormatUtils.tlCompact(shop.dailyPassiveBaseIncome), color: .gdlGold)
+                shopStat(label: "10sn", value: "₺\(Int(shop.locationType.passiveTick))", color: .gdlGold)
                 shopStat(label: "VIP", value: "\(Int(shop.vipChance * 100))%", color: .gdlTextPrimary)
-
-                // Günlük müşteri limiti
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Kota")
-                        .font(.gdlCaption())
-                        .foregroundColor(.gdlTextSecondary)
-                    HStack(spacing: 3) {
-                        Image(systemName: "person.3.fill")
-                            .font(.system(size: 10))
-                            .foregroundColor(.gdlTextPrimary)
-                        Text("\(shop.locationType.dailyCustomerLimit)")
-                            .font(.gdlBody())
-                            .foregroundColor(.gdlTextPrimary)
-                    }
-                }
 
                 // Personel stat + hire butonu
                 VStack(alignment: .leading, spacing: 2) {

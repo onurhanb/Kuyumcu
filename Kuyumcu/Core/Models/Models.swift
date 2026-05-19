@@ -57,6 +57,7 @@ struct Rate: Identifiable, Codable {
     var type: String        // "gramGold" | "quarterGold" | "halfGold" | "fullGold" | "USD" | "EUR"
     var buyPrice: Double    // Alış fiyatı (biz alırken)
     var sellPrice: Double   // Satış fiyatı (biz satarken)
+    var changeDir: Int = 0  // -1: düştü, 0: sabit, 1: yükseldi (dünkü veriye göre)
     var sourceName: String
     var sourceDate: String
 }
@@ -116,18 +117,6 @@ enum ShopLocationType: String, Codable, CaseIterable {
         }
     }
 
-    /// Günlük toplam müşteri limiti (250'şer artar)
-    var dailyCustomerLimit: Int {
-        switch self {
-        case .neighborhood:   return 250
-        case .bazaar:         return 500
-        case .districtBazaar: return 750
-        case .cityCenter:     return 1000
-        case .mall:           return 1250
-        case .grandBazaar:    return 1500
-        }
-    }
-
     /// Aynı anda bekleme sırasında durabilecek maksimum müşteri (5'er artar)
     var queueCapacity: Int {
         switch self {
@@ -137,6 +126,18 @@ enum ShopLocationType: String, Codable, CaseIterable {
         case .cityCenter:     return 20
         case .mall:           return 25
         case .grandBazaar:    return 30
+        }
+    }
+
+    /// Her 10 saniyede dükkandan elde edilen pasif gelir (TL)
+    var passiveTick: Double {
+        switch self {
+        case .neighborhood:   return 2.0
+        case .bazaar:         return 3.0
+        case .districtBazaar: return 4.0
+        case .cityCenter:     return 5.0
+        case .mall:           return 6.0
+        case .grandBazaar:    return 7.0
         }
     }
 }
@@ -296,51 +297,24 @@ enum TransactionResult: String, Codable {
 
 // MARK: - Events
 
-enum EventType: String, Codable, CaseIterable {
-    case weddingSeason, holiday, touristSeason, promotionWeek, financeNews
-
-    var displayName: String {
-        switch self {
-        case .weddingSeason:  return "Düğün Sezonu"
-        case .holiday:        return "Bayram"
-        case .touristSeason:  return "Turist Sezonu"
-        case .promotionWeek:  return "Promosyon Haftası"
-        case .financeNews:    return "Finans Gündemi"
-        }
-    }
-
-    var icon: String {
-        switch self {
-        case .weddingSeason:  return "heart.fill"
-        case .holiday:        return "star.fill"
-        case .touristSeason:  return "airplane"
-        case .promotionWeek:  return "tag.fill"
-        case .financeNews:    return "chart.line.uptrend.xyaxis"
-        }
-    }
-
-    var accentColor: String {
-        switch self {
-        case .weddingSeason:  return "pink"
-        case .holiday:        return "orange"
-        case .touristSeason:  return "blue"
-        case .promotionWeek:  return "green"
-        case .financeNews:    return "red"
-        }
-    }
-}
-
 struct GameEvent: Identifiable, Codable {
     var id: UUID
     var name: String
     var description: String
-    var eventType: EventType
+    var icon: String            // SF Symbol adı (ör. "heart.fill")
+    var accentColorName: String // "pink","orange","blue","green","red","gold"
     var trafficModifier: Double
     var generosityModifier: Double
     var vipModifier: Double
-    var durationDays: Int
-    var remainingDays: Int
     var isActive: Bool
+    var endsAt: Date?
+
+    /// Bitiş tarihine göre kalan gün (endsAt nil ise 0)
+    var remainingDays: Int {
+        guard let end = endsAt else { return 0 }
+        let days = Calendar.current.dateComponents([.day], from: Date(), to: end).day ?? 0
+        return max(0, days)
+    }
 }
 
 // MARK: - Leaderboard

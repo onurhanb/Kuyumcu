@@ -143,42 +143,8 @@ struct MockGameData {
 
     // MARK: - Events
 
-    static var allEvents: [GameEvent] {[
-        GameEvent(id: UUID(), name: "Düğün Sezonu",    description: "Düğün sezonu! Daha fazla tam altın ve bilezik talebi var.",
-                  eventType: .weddingSeason, trafficModifier: 1.3, generosityModifier: 1.2, vipModifier: 1.1,
-                  durationDays: 7, remainingDays: 5, isActive: true),
-
-        GameEvent(id: UUID(), name: "Kurban Bayramı",  description: "Bayram coşkusu! Müşteri trafiği ve cömertlik artıyor.",
-                  eventType: .holiday,       trafficModifier: 1.5, generosityModifier: 1.4, vipModifier: 1.2,
-                  durationDays: 4, remainingDays: 0, isActive: false),
-
-        GameEvent(id: UUID(), name: "Turist Sezonu",   description: "Turistler geliyor! Döviz işlemleri artıyor.",
-                  eventType: .touristSeason, trafficModifier: 1.4, generosityModifier: 1.1, vipModifier: 1.3,
-                  durationDays: 30, remainingDays: 0, isActive: false),
-
-        GameEvent(id: UUID(), name: "Promosyon Haftası",description: "100 işlem ve 1M TL kâr tamamlarsan ödül kazanırsın!",
-                  eventType: .promotionWeek, trafficModifier: 1.2, generosityModifier: 1.0, vipModifier: 1.0,
-                  durationDays: 7, remainingDays: 0, isActive: false),
-
-        GameEvent(id: UUID(), name: "Finans Gündemi",  description: "Ekonomik belirsizlik! Müşteriler daha temkinli davranıyor.",
-                  eventType: .financeNews,   trafficModifier: 0.9, generosityModifier: 0.8, vipModifier: 0.9,
-                  durationDays: 3, remainingDays: 0, isActive: false),
-    ]}
-
-    // MARK: - Leaderboard
-
-    static let mockLeaderboard: [LeaderboardEntry] = [
-        LeaderboardEntry(id: UUID(), playerName: "Mehmet Efendi",       dailyProfit: 890_000,  weeklyProfit: 5_200_000, monthlyRevenue: 21_000_000, netWorth: 142_000_000, cashBalance: 28_000_000, lifestylePoints: 312),
-        LeaderboardEntry(id: UUID(), playerName: "Ayşe Hanım",          dailyProfit: 720_000,  weeklyProfit: 4_100_000, monthlyRevenue: 17_500_000, netWorth:  98_000_000, cashBalance: 41_000_000, lifestylePoints: 275),
-        LeaderboardEntry(id: UUID(), playerName: "Kapalıçarşı Ustası",  dailyProfit: 650_000,  weeklyProfit: 3_900_000, monthlyRevenue: 16_200_000, netWorth:  87_000_000, cashBalance: 12_000_000, lifestylePoints: 198),
-        LeaderboardEntry(id: UUID(), playerName: "Altın Kral",           dailyProfit: 520_000,  weeklyProfit: 3_200_000, monthlyRevenue: 14_000_000, netWorth:  71_000_000, cashBalance: 19_500_000, lifestylePoints: 430),
-        LeaderboardEntry(id: UUID(), playerName: "Buse Hanım",          dailyProfit: 410_000,  weeklyProfit: 2_800_000, monthlyRevenue: 11_500_000, netWorth:  54_000_000, cashBalance:  8_200_000, lifestylePoints: 155),
-        LeaderboardEntry(id: UUID(), playerName: "Sarraf Kemal",        dailyProfit: 340_000,  weeklyProfit: 2_300_000, monthlyRevenue:  9_800_000, netWorth:  43_000_000, cashBalance: 15_000_000, lifestylePoints:  88),
-        LeaderboardEntry(id: UUID(), playerName: "Zeynep Altın",        dailyProfit: 280_000,  weeklyProfit: 1_900_000, monthlyRevenue:  8_200_000, netWorth:  35_000_000, cashBalance:  6_800_000, lifestylePoints: 210),
-        LeaderboardEntry(id: UUID(), playerName: "Hüseyin Usta",        dailyProfit: 215_000,  weeklyProfit: 1_500_000, monthlyRevenue:  6_700_000, netWorth:  27_000_000, cashBalance:  3_500_000, lifestylePoints:  64),
-        LeaderboardEntry(id: UUID(), playerName: "Fatma Sarraf",        dailyProfit: 160_000,  weeklyProfit: 1_100_000, monthlyRevenue:  5_100_000, netWorth:  19_000_000, cashBalance:  5_100_000, lifestylePoints: 120),
-        LeaderboardEntry(id: UUID(), playerName: "Cevher Bey",          dailyProfit: 110_000,  weeklyProfit:   780_000, monthlyRevenue:  3_600_000, netWorth:  12_000_000, cashBalance:  2_200_000, lifestylePoints:  42),
-    ]
+    // Etkinlikler Supabase'den yükleniyor (game_events tablosu)
+    static var allEvents: [GameEvent] { [] }
 
     // MARK: - Customer Templates
 

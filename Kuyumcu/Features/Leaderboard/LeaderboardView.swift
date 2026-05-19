@@ -11,14 +11,15 @@ struct LeaderboardView: View {
     }
 
     @State private var selectedTab: Tab = .daily
+    @State private var otherEntries: [LeaderboardEntry] = []
+    @State private var isLoading = true
 
-    // Fixed UUID so the player row keeps stable identity across renders (prevents animation jumps)
     private let playerID = UUID()
 
     private var playerEntry: LeaderboardEntry {
         LeaderboardEntry(
             id: playerID,
-            playerName: "Sen (Benim Dükkanım)",
+            playerName: "Sen (\(gameState.shopName))",
             dailyProfit: gameState.dailyProfit,
             weeklyProfit: gameState.weeklyProfit,
             monthlyRevenue: gameState.monthlyRevenue,
@@ -30,14 +31,8 @@ struct LeaderboardView: View {
     }
 
     private var sortedEntries: [LeaderboardEntry] {
-        var entries = MockGameData.mockLeaderboard
-        entries.append(playerEntry)
-        switch selectedTab {
-        case .daily:    return entries.sorted { $0.dailyProfit    > $1.dailyProfit }
-        case .weekly:   return entries.sorted { $0.weeklyProfit   > $1.weeklyProfit }
-        case .monthly:  return entries.sorted { $0.monthlyRevenue > $1.monthlyRevenue }
-        case .netWorth: return entries.sorted { $0.netWorth       > $1.netWorth }
-        }
+        let all = [playerEntry] + otherEntries
+        return all.sorted { valueForTab($0) > valueForTab($1) }
     }
 
     private func valueForTab(_ entry: LeaderboardEntry) -> Double {
@@ -76,28 +71,57 @@ struct LeaderboardView: View {
                 }
                 .background(Color.gdlCard)
 
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: 10) {
-                        ForEach(Array(sortedEntries.enumerated()), id: \.element.id) { rank, entry in
-                            leaderboardRow(rank: rank + 1, entry: entry, value: valueForTab(entry))
+                if isLoading {
+                    Spacer()
+                    ProgressView().tint(.gdlGold)
+                    Spacer()
+                } else {
+                    ScrollView(showsIndicators: false) {
+                        VStack(spacing: 10) {
+                            ForEach(Array(sortedEntries.enumerated()), id: \.element.id) { rank, entry in
+                                leaderboardRow(rank: rank + 1, entry: entry, value: valueForTab(entry))
+                            }
+                            if sortedEntries.count == 1 {
+                                VStack(spacing: 6) {
+                                    Image(systemName: "person.2.fill")
+                                        .font(.system(size: 32))
+                                        .foregroundColor(.gdlGold.opacity(0.4))
+                                    Text("Henüz başka oyuncu yok.")
+                                        .font(.gdlBody())
+                                        .foregroundColor(.gdlTextSecondary)
+                                }
+                                .padding(.top, 24)
+                            }
+                            Spacer(minLength: 80)
                         }
-                        Text("Çevrimiçi sıralama yakında aktif olacak.")
-                            .font(.gdlCaption()).foregroundColor(.gdlTextSecondary)
-                            .padding(.top, 8)
-                        Spacer(minLength: 80)
+                        .padding(.top, 10)
+                        .padding(.horizontal)
                     }
-                    .padding(.top, 10)
-                    .padding(.horizontal)
                 }
             }
         }
         .navigationTitle("Sıralama")
         .navigationBarTitleDisplayMode(.large)
+        .task { await loadLeaderboard() }
+    }
+
+    private func loadLeaderboard() async {
+        guard let userId = AuthService.shared.userId else {
+            isLoading = false
+            return
+        }
+        let entries = await SupabaseSaveService.fetchLeaderboard(
+            currentUserId: userId,
+            rates: gameState.rates
+        )
+        await MainActor.run {
+            otherEntries = entries
+            isLoading = false
+        }
     }
 
     private func leaderboardRow(rank: Int, entry: LeaderboardEntry, value: Double) -> some View {
         HStack(spacing: 12) {
-            // Rank badge
             ZStack {
                 Circle()
                     .fill(rankColor(rank))
@@ -129,9 +153,9 @@ struct LeaderboardView: View {
 
     private func rankColor(_ rank: Int) -> Color {
         switch rank {
-        case 1: return Color(red: 1.0, green: 0.84, blue: 0.0)   // gold
-        case 2: return Color(red: 0.75, green: 0.75, blue: 0.75) // silver
-        case 3: return Color(red: 0.80, green: 0.50, blue: 0.20) // bronze
+        case 1: return Color(red: 1.0, green: 0.84, blue: 0.0)
+        case 2: return Color(red: 0.75, green: 0.75, blue: 0.75)
+        case 3: return Color(red: 0.80, green: 0.50, blue: 0.20)
         default: return Color.gdlCardSecondary
         }
     }

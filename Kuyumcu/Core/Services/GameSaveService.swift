@@ -24,14 +24,13 @@ class GameSaveService {
             "monthlyRevenue":              state.monthlyRevenue,
             "currentDay":                  state.currentDay,
             "passiveIncomeCollectedToday": state.passiveIncomeCollectedToday,
+            "passiveIncomeCollectedAt":    state.passiveIncomeCollectedAt?.timeIntervalSince1970 ?? -1,
             "totalTransactions":           state.totalTransactions,
             "acceptedDeals":               state.acceptedDeals,
             "rejectedDeals":               state.rejectedDeals,
             "yesterdayCash":               state.yesterdayCash,
-            "previousRatePrices":          state.previousRatePrices,
             "trustScore":                  state.trustScore,
             "shopName":                    state.shopName,
-            "isGuest":                     state.isGuest,
             // Owned shop names (simplified – match by name on load)
             "ownedShopNames":              state.ownedShops.map { $0.name },
             // Rates cache
@@ -41,6 +40,9 @@ class GameSaveService {
             "ratesSourceDate":             state.rates.first?.sourceDate ?? "",
             // Owned lifestyle items (name used as stable key)
             "lifestyleOwnedNames":         state.lifestyleItems.filter { $0.isOwned }.map { $0.name },
+            // Daily reward (yerel yedek — Supabase yetersiz kalırsa devreye girer)
+            "dailyRewardDay":               state.dailyRewardDay,
+            "dailyRewardClaimedAt":         state.dailyRewardClaimedAt?.timeIntervalSince1970 ?? -1,
         ]
         UserDefaults.standard.set(dict, forKey: key)
     }
@@ -63,14 +65,15 @@ class GameSaveService {
         state.monthlyRevenue              = dict["monthlyRevenue"]              as? Double ?? state.monthlyRevenue
         state.currentDay                  = dict["currentDay"]                  as? Int    ?? state.currentDay
         state.passiveIncomeCollectedToday = dict["passiveIncomeCollectedToday"] as? Bool   ?? false
+        if let ts = dict["passiveIncomeCollectedAt"] as? Double, ts > 0 {
+            state.passiveIncomeCollectedAt = Date(timeIntervalSince1970: ts)
+        }
         state.totalTransactions           = dict["totalTransactions"]           as? Int    ?? state.totalTransactions
         state.acceptedDeals               = dict["acceptedDeals"]               as? Int    ?? state.acceptedDeals
         state.rejectedDeals               = dict["rejectedDeals"]               as? Int    ?? state.rejectedDeals
-        state.yesterdayCash               = dict["yesterdayCash"]               as? Double        ?? state.yesterdayCash
-        state.previousRatePrices          = dict["previousRatePrices"]          as? [String: Double] ?? [:]
+        state.yesterdayCash               = dict["yesterdayCash"]               as? Double ?? state.yesterdayCash
         state.trustScore                  = dict["trustScore"]                  as? Double ?? state.trustScore
         state.shopName                    = dict["shopName"]                    as? String ?? state.shopName
-        state.isGuest                     = dict["isGuest"]                     as? Bool   ?? state.isGuest
 
         // Restore cached rates (overwrites mock values if available)
         if let buyPrices  = dict["ratesBuyPrices"]  as? [String: Double],
@@ -103,9 +106,34 @@ class GameSaveService {
                 state.lifestyleItems[i].isOwned = nameSet.contains(state.lifestyleItems[i].name)
             }
         }
+
+        // Daily reward yerel yedeği (sadece Supabase değerler boşsa kullanılır)
+        if state.dailyRewardDay == 0,
+           let savedDay = dict["dailyRewardDay"] as? Int, savedDay > 0 {
+            state.dailyRewardDay = savedDay
+        }
+        if state.dailyRewardClaimedAt == nil,
+           let savedTs = dict["dailyRewardClaimedAt"] as? Double, savedTs > 0 {
+            state.dailyRewardClaimedAt = Date(timeIntervalSince1970: savedTs)
+        }
     }
 
     static func reset() {
         UserDefaults.standard.removeObject(forKey: key)
+    }
+
+    /// Oyun günü 08:00 İstanbul saatinde başlar. İki tarihin aynı oyun gününe ait olup olmadığını kontrol eder.
+    private static func isSameGameDay(_ d1: Date, _ d2: Date) -> Bool {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "Europe/Istanbul")!
+
+        func gameDayStart(for date: Date) -> Date {
+            var comps = cal.dateComponents([.year, .month, .day], from: date)
+            comps.hour = 8; comps.minute = 0; comps.second = 0
+            let dayStart = cal.date(from: comps)!
+            return date < dayStart ? cal.date(byAdding: .day, value: -1, to: dayStart)! : dayStart
+        }
+
+        return gameDayStart(for: d1) == gameDayStart(for: d2)
     }
 }
