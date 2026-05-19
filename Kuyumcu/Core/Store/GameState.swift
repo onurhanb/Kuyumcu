@@ -22,9 +22,7 @@ class GameState: ObservableObject {
     @Published var weeklyProfit: Double
     @Published var monthlyRevenue: Double
     @Published var currentDay: Int
-    @Published var passiveIncomeCollectedToday: Bool
     @Published var shopAccumulatedIncome: [String: Double] = [:]   // per-shop birikimli pasif gelir
-    @Published var passiveIncomeCollectedAt: Date? = nil            // son çekim zamanı (08:00 sıfırlama için)
     private var passiveIncomeTimer: AnyCancellable?
     private var passiveTimerGeneration = 0                          // stale asyncAfter'ları iptal etmek için
 
@@ -121,9 +119,8 @@ class GameState: ObservableObject {
         self.dailyProfit                 = 0
         self.weeklyProfit                = 0
         self.monthlyRevenue              = 0
-        self.currentDay                  = 1
-        self.passiveIncomeCollectedToday = false
-        self.activeEvents                = MockGameData.allEvents
+        self.currentDay  = 1
+        self.activeEvents = MockGameData.allEvents
         self.totalTransactions           = 0
         self.acceptedDeals               = 0
         self.rejectedDeals               = 0
@@ -213,16 +210,13 @@ class GameState: ObservableObject {
     // MARK: - Actions
 
     func collectPassiveIncome() {
-        guard !passiveIncomeCollectedToday else { return }
         let income = passiveIncomeAvailable
         guard income > 0 else { return }
-        playerCash                  += income
-        inventory.tryCash           += income
-        dailyProfit                 += income
-        totalProfit                 += income
-        passiveIncomeCollectedToday  = true
-        passiveIncomeCollectedAt     = Date()
-        shopAccumulatedIncome        = [:]
+        playerCash        += income
+        inventory.tryCash += income
+        dailyProfit       += income
+        totalProfit       += income
+        shopAccumulatedIncome = [:]
         GameSaveService.save(self)
         Task { await SupabaseSaveService.save(self) }
     }
@@ -240,10 +234,9 @@ class GameState: ObservableObject {
     }
 
     func advanceDay() {
-        yesterdayCash                = inventory.tryCash
-        currentDay                  += 1
-        passiveIncomeCollectedToday  = false
-        dailyProfit                  = 0
+        yesterdayCash = inventory.tryCash
+        currentDay   += 1
+        dailyProfit   = 0
         isBargaining                 = false
         if currentDay % 7  == 0 { weeklyProfit   = 0 }
         if currentDay % 30 == 0 { monthlyRevenue  = 0 }
@@ -315,9 +308,8 @@ class GameState: ObservableObject {
         dailyProfit                 = 0
         weeklyProfit                = 0
         monthlyRevenue              = 0
-        currentDay                  = 1
-        passiveIncomeCollectedToday = false
-        totalTransactions           = 0
+        currentDay        = 1
+        totalTransactions = 0
         acceptedDeals               = 0
         rejectedDeals               = 0
         lifestyleItems              = MockGameData.allLifestyleItems
@@ -537,7 +529,6 @@ class GameState: ObservableObject {
     }
 
     private func doPassiveTick() {
-        guard !passiveIncomeCollectedToday else { return }
         for shop in ownedShops {
             let tick = shop.locationType.passiveTick
                      * employeeMultiplier(for: shop)
@@ -552,17 +543,11 @@ class GameState: ObservableObject {
     }
 
     /// Uygulama arka plandayken veya kapalıyken geçen süredeki tıklamaları hesaplar.
-    /// Bugünkü İstanbul oyun gününden öncesi sayılmaz.
     func applyOfflineTicks() {
-        guard !passiveIncomeCollectedToday else { return }
         let now = Date()
         let currentPeriod = floor(now.timeIntervalSince1970 / 10)
         let savedPeriod   = UserDefaults.standard.double(forKey: "passiveTickPeriod")
-
-        // Bugünün oyun günü başlangıcından önceki tıklamalar geçersiz
-        let gameDayPeriod = floor(Self.istanbulGameDayStart(of: now).timeIntervalSince1970 / 10)
-        let effectiveFrom = max(savedPeriod > 0 ? savedPeriod : currentPeriod, gameDayPeriod)
-
+        let effectiveFrom = savedPeriod > 0 ? savedPeriod : currentPeriod
         let missed = Int(currentPeriod - effectiveFrom)
         guard missed > 0 else { return }
 
@@ -573,14 +558,6 @@ class GameState: ObservableObject {
             shopAccumulatedIncome[shop.name, default: 0] += Double(missed) * tick
         }
         UserDefaults.standard.set(currentPeriod, forKey: "passiveTickPeriod")
-    }
-
-    /// Eğer son toplama önceki oyun gününde ise (İstanbul 08:00 sınırı) sıfırlar
-    func checkPassiveCollectionReset() {
-        guard let at = passiveIncomeCollectedAt else { return }
-        if Self.istanbulGameDayStart(of: at) < Self.istanbulGameDayStart(of: Date()) {
-            passiveIncomeCollectedToday = false
-        }
     }
 
     func spawnCustomer() {

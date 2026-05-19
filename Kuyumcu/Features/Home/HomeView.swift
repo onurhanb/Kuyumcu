@@ -12,8 +12,10 @@ private let infoTips: [(icon: String, text: String)] = [
 
 struct HomeView: View {
     @EnvironmentObject var gameState: GameState
+    @StateObject private var adManager = AdManager.shared
     @State private var showCounter      = false
-    @State private var showIncomeAlert  = false
+    @State private var showIncomeAlert      = false
+    @State private var lastCollectedAmount: Double = 0
     @State private var showDailyReward  = false
     @State private var tipIndex         = Int.random(in: 0..<infoTips.count)
     @State private var rankingTab       = 0
@@ -115,10 +117,10 @@ struct HomeView: View {
             }
         }
         .animation(.easeInOut(duration: 0.2), value: showDailyReward)
-        .alert("Gelir Toplandı!", isPresented: $showIncomeAlert) {
+        .alert("Gelir Toplandı! 💰", isPresented: $showIncomeAlert) {
             Button("Harika!", role: .cancel) {}
         } message: {
-            Text("Tüm dükkanlardan pasif gelir toplandı.")
+            Text("\(FormatUtils.tl(lastCollectedAmount)) hesabına eklendi.")
         }
         .onAppear {
             tipIndex = Int.random(in: 0..<infoTips.count)
@@ -375,23 +377,14 @@ struct HomeView: View {
                         .foregroundColor(.gdlTextSecondary)
                 }
                 HStack(spacing: 4) {
-                    if gameState.passiveIncomeCollectedToday && accumulated == 0 {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 9))
-                            .foregroundColor(.gdlPositive)
-                        Text("Bugün toplandı")
-                            .font(.gdlCaption())
-                            .foregroundColor(.gdlTextSecondary)
-                    } else {
-                        Image(systemName: "arrow.up.right.circle.fill")
-                            .font(.system(size: 9))
-                            .foregroundColor(.gdlGold)
-                        Text("Kazanç: \(FormatUtils.tl(accumulated))")
-                            .font(.system(size: 11, weight: .semibold, design: .rounded))
-                            .foregroundColor(.gdlGold)
-                            .contentTransition(.numericText())
-                            .animation(.easeInOut(duration: 0.5), value: accumulated)
-                    }
+                    Image(systemName: "arrow.up.right.circle.fill")
+                        .font(.system(size: 9))
+                        .foregroundColor(.gdlGold)
+                    Text("Kazanç: \(FormatUtils.tl(accumulated))")
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .foregroundColor(.gdlGold)
+                        .contentTransition(.numericText())
+                        .animation(.easeInOut(duration: 0.5), value: accumulated)
                 }
             }
 
@@ -418,29 +411,50 @@ struct HomeView: View {
     }
 
     private var passiveIncomeRow: some View {
-        HStack {
+        let hasIncome  = gameState.passiveIncomeAvailable > 0
+        let adReady    = adManager.isAdReady
+        let canCollect = hasIncome && adReady
+
+        return HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Pasif Gelir")
                     .font(.gdlCaption())
                     .foregroundColor(.gdlTextSecondary)
                 Text(FormatUtils.tl(gameState.passiveIncomeAvailable))
                     .font(.system(size: 16, weight: .bold, design: .rounded))
-                    .foregroundColor(gameState.passiveIncomeCollectedToday ? .gdlTextSecondary : .gdlGold)
+                    .foregroundColor(hasIncome ? .gdlGold : .gdlTextSecondary)
             }
             Spacer()
             Button {
-                gameState.collectPassiveIncome()
-                showIncomeAlert = true
+                let amount = gameState.passiveIncomeAvailable
+                adManager.showAd {
+                    gameState.collectPassiveIncome()
+                    lastCollectedAmount = amount
+                    showIncomeAlert = true
+                }
             } label: {
-                Label("Topla", systemImage: "arrow.down.circle.fill")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(gameState.passiveIncomeCollectedToday ? .gdlTextSecondary : .black)
+                if adManager.isLoading {
+                    HStack(spacing: 6) {
+                        ProgressView().tint(.gdlTextSecondary).scaleEffect(0.75)
+                        Text("Hazırlanıyor")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.gdlTextSecondary)
+                    }
                     .padding(.horizontal, 14)
                     .padding(.vertical, 8)
-                    .background(gameState.passiveIncomeCollectedToday ? Color.gdlCardSecondary : Color.gdlGold)
+                    .background(Color.gdlCardSecondary)
                     .cornerRadius(10)
+                } else {
+                    Label("İzle & Topla", systemImage: "play.rectangle.fill")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(canCollect ? .black : .gdlTextSecondary)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(canCollect ? Color.gdlGold : Color.gdlCardSecondary)
+                        .cornerRadius(10)
+                }
             }
-            .disabled(gameState.passiveIncomeCollectedToday || gameState.passiveIncomeAvailable == 0)
+            .disabled(!canCollect)
         }
     }
 

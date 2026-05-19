@@ -23,8 +23,6 @@ class GameSaveService {
             "weeklyProfit":                state.weeklyProfit,
             "monthlyRevenue":              state.monthlyRevenue,
             "currentDay":                  state.currentDay,
-            "passiveIncomeCollectedToday": state.passiveIncomeCollectedToday,
-            "passiveIncomeCollectedAt":    state.passiveIncomeCollectedAt?.timeIntervalSince1970 ?? -1,
             "totalTransactions":           state.totalTransactions,
             "acceptedDeals":               state.acceptedDeals,
             "rejectedDeals":               state.rejectedDeals,
@@ -64,10 +62,6 @@ class GameSaveService {
         state.weeklyProfit                = dict["weeklyProfit"]                as? Double ?? state.weeklyProfit
         state.monthlyRevenue              = dict["monthlyRevenue"]              as? Double ?? state.monthlyRevenue
         state.currentDay                  = dict["currentDay"]                  as? Int    ?? state.currentDay
-        state.passiveIncomeCollectedToday = dict["passiveIncomeCollectedToday"] as? Bool   ?? false
-        if let ts = dict["passiveIncomeCollectedAt"] as? Double, ts > 0 {
-            state.passiveIncomeCollectedAt = Date(timeIntervalSince1970: ts)
-        }
         state.totalTransactions           = dict["totalTransactions"]           as? Int    ?? state.totalTransactions
         state.acceptedDeals               = dict["acceptedDeals"]               as? Int    ?? state.acceptedDeals
         state.rejectedDeals               = dict["rejectedDeals"]               as? Int    ?? state.rejectedDeals

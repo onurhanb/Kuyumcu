@@ -242,7 +242,7 @@ struct ShopCard: View {
                 if !shop.isOwned {
                     shopStat(label: "Fiyat", value: FormatUtils.tlCompact(shop.purchasePrice), color: canAfford ? .gdlGold : .gdlNegative)
                 }
-                shopStat(label: "10sn", value: "₺\(Int(shop.locationType.passiveTick))", color: .gdlGold)
+                shopStat(label: "Günlük K.", value: FormatUtils.tlCompact(shop.locationType.passiveTick * 8640), color: .gdlGold)
                 shopStat(label: "VIP", value: "\(Int(shop.vipChance * 100))%", color: .gdlTextPrimary)
 
                 // Personel stat + hire butonu

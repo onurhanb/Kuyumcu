@@ -89,12 +89,8 @@ struct KuyumcuApp: App {
             isLoadingGameData = true
         }
 
-        // Önce yerel cache'i yükle (müşteri kotası ve daily reward yedeği)
-        await MainActor.run {
-            GameSaveService.load(into: gameState)
-            // Pasif gelir toplama günü geçmiş mi kontrol et
-            gameState.checkPassiveCollectionReset()
-        }
+        // Önce yerel cache'i yükle
+        await MainActor.run { GameSaveService.load(into: gameState) }
 
         // Supabase'den veri yükle (yerel cache'in üzerine yazar)
         await SupabaseSaveService.load(into: gameState)
@@ -102,7 +98,7 @@ struct KuyumcuApp: App {
         await SupabaseSaveService.loadEvents(into: gameState)
 
         await MainActor.run {
-            // Gerçek shop listesi yüklendikten sonra birikimi sıfırla ve timer'ı yeniden başlat
+            // Gerçek shop listesi yüklendikten sonra birikimi sıfırla ve timer'ı başlat
             gameState.shopAccumulatedIncome = [:]
             gameState.startPassiveTimer()
             isLoadingGameData = false

@@ -21,7 +21,6 @@ struct PlayerStatsRow: Codable {
     var weeklyProfit: Double
     var monthlyRevenue: Double
     var currentDay: Int
-    var passiveIncomeCollectedToday: Bool
     var totalTransactions: Int
     var acceptedDeals: Int
     var rejectedDeals: Int
@@ -48,7 +47,6 @@ struct PlayerStatsRow: Codable {
         case weeklyProfit               = "weekly_profit"
         case monthlyRevenue             = "monthly_revenue"
         case currentDay                 = "current_day"
-        case passiveIncomeCollectedToday = "passive_income_collected_today"
         case totalTransactions          = "total_transactions"
         case acceptedDeals              = "accepted_deals"
         case rejectedDeals              = "rejected_deals"
@@ -76,7 +74,6 @@ struct PlayerStatsRow: Codable {
         self.weeklyProfit                = state.weeklyProfit
         self.monthlyRevenue              = state.monthlyRevenue
         self.currentDay                  = state.currentDay
-        self.passiveIncomeCollectedToday = state.passiveIncomeCollectedToday
         self.totalTransactions           = state.totalTransactions
         self.acceptedDeals               = state.acceptedDeals
         self.rejectedDeals               = state.rejectedDeals
@@ -376,7 +373,6 @@ class SupabaseSaveService {
         state.weeklyProfit                = row.weeklyProfit
         state.monthlyRevenue              = row.monthlyRevenue
         state.currentDay                  = row.currentDay
-        state.passiveIncomeCollectedToday = row.passiveIncomeCollectedToday
         state.totalTransactions           = row.totalTransactions
         state.acceptedDeals               = row.acceptedDeals
         state.rejectedDeals               = row.rejectedDeals
