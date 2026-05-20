@@ -149,8 +149,6 @@ struct Shop: Identifiable, Codable, Equatable {
     var locationType: ShopLocationType
     var level: Int
     var purchasePrice: Double
-    var dailyPassiveBaseIncome: Double
-    var passiveMultiplier: Double
     var customerTrafficMultiplier: Double
     var vipChance: Double
     var employeeCapacity: Int

@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 
 // MARK: - Info Tips (etkinlik yokken gösterilir)
 private let infoTips: [(icon: String, text: String)] = [
@@ -19,6 +20,7 @@ struct HomeView: View {
     @State private var showDailyReward  = false
     @State private var tipIndex         = Int.random(in: 0..<infoTips.count)
     @State private var rankingTab       = 0
+    @State private var passiveIncomeNow = Date()
 
     // Kur ticker metni
     private var ratesTickerText: String {
@@ -47,9 +49,7 @@ struct HomeView: View {
         displayFmt.locale = Locale(identifier: "tr_TR")
         displayFmt.timeZone = TimeZone(identifier: "Europe/Istanbul")
         displayFmt.dateFormat = "d MMMM yyyy"
-        let isoFmt = ISO8601DateFormatter()
-        isoFmt.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = isoFmt.date(from: raw) {
+        if let date = parseRateDate(raw) {
             return displayFmt.string(from: date)
         }
         return displayFmt.string(from: Date())
@@ -62,12 +62,28 @@ struct HomeView: View {
         displayFmt.locale = Locale(identifier: "tr_TR")
         displayFmt.timeZone = TimeZone(identifier: "Europe/Istanbul")
         displayFmt.dateFormat = "d MMMM yyyy • HH:mm"
-        let isoFmt = ISO8601DateFormatter()
-        isoFmt.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = isoFmt.date(from: raw) {
+        if let date = parseRateDate(raw) {
             return displayFmt.string(from: date)
         }
         return ""
+    }
+
+    private func parseRateDate(_ raw: String) -> Date? {
+        let fractionalISO = ISO8601DateFormatter()
+        fractionalISO.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = fractionalISO.date(from: raw) {
+            return date
+        }
+
+        if let date = ISO8601DateFormatter().date(from: raw) {
+            return date
+        }
+
+        let trDateFormatter = DateFormatter()
+        trDateFormatter.locale = Locale(identifier: "tr_TR")
+        trDateFormatter.timeZone = TimeZone(identifier: "Europe/Istanbul")
+        trDateFormatter.dateFormat = "d MMMM yyyy"
+        return trDateFormatter.date(from: raw)
     }
 
     var body: some View {
@@ -117,6 +133,9 @@ struct HomeView: View {
             }
         }
         .animation(.easeInOut(duration: 0.2), value: showDailyReward)
+        .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { now in
+            passiveIncomeNow = now
+        }
         .alert("Gelir Toplandı! 💰", isPresented: $showIncomeAlert) {
             Button("Harika!", role: .cancel) {}
         } message: {
@@ -349,8 +368,7 @@ struct HomeView: View {
     }
 
     private func shopRow(shop: Shop) -> some View {
-        let accumulated = gameState.shopAccumulatedIncome[shop.name] ?? 0
-        return HStack(spacing: 12) {
+        HStack(spacing: 12) {
             ZStack {
                 RoundedRectangle(cornerRadius: 10)
                     .fill(Color.gdlGold.opacity(0.15))
@@ -375,16 +393,6 @@ struct HomeView: View {
                     Text("₺\(Int(shop.locationType.passiveTick))/10sn")
                         .font(.gdlCaption())
                         .foregroundColor(.gdlTextSecondary)
-                }
-                HStack(spacing: 4) {
-                    Image(systemName: "arrow.up.right.circle.fill")
-                        .font(.system(size: 9))
-                        .foregroundColor(.gdlGold)
-                    Text("Kazanç: \(FormatUtils.tl(accumulated))")
-                        .font(.system(size: 11, weight: .semibold, design: .rounded))
-                        .foregroundColor(.gdlGold)
-                        .contentTransition(.numericText())
-                        .animation(.easeInOut(duration: 0.5), value: accumulated)
                 }
             }
 
@@ -411,7 +419,8 @@ struct HomeView: View {
     }
 
     private var passiveIncomeRow: some View {
-        let hasIncome  = gameState.passiveIncomeAvailable > 0
+        let income = gameState.passiveIncomeAvailable(at: passiveIncomeNow)
+        let hasIncome  = income > 0
         let adReady    = adManager.isAdReady
         let canCollect = hasIncome && adReady
 
@@ -420,14 +429,15 @@ struct HomeView: View {
                 Text("Pasif Gelir")
                     .font(.gdlCaption())
                     .foregroundColor(.gdlTextSecondary)
-                Text(FormatUtils.tl(gameState.passiveIncomeAvailable))
+                Text(FormatUtils.tl(income))
                     .font(.system(size: 16, weight: .bold, design: .rounded))
                     .foregroundColor(hasIncome ? .gdlGold : .gdlTextSecondary)
+                    .contentTransition(.numericText())
             }
             Spacer()
             Button {
-                let amount = gameState.passiveIncomeAvailable
                 adManager.showAd {
+                    let amount = gameState.passiveIncomeAvailable
                     gameState.collectPassiveIncome()
                     lastCollectedAmount = amount
                     showIncomeAlert = true

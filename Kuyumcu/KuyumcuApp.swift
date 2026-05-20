@@ -12,7 +12,6 @@ struct KuyumcuApp: App {
     @StateObject private var authService    = AuthService.shared
     @StateObject private var networkMonitor = NetworkMonitor.shared
     @StateObject private var audioManager   = AudioManager.shared
-    @Environment(\.scenePhase) private var scenePhase
 
     init() {
         MobileAds.shared.start()
@@ -62,12 +61,6 @@ struct KuyumcuApp: App {
                 }
             }
             .preferredColorScheme(.dark)
-            .onChange(of: scenePhase) { _, phase in
-                // Ön plana dönerken arka planda biriken geliri hesapla
-                if phase == .active {
-                    gameState.applyOfflineTicks()
-                }
-            }
             .onChange(of: authService.session) { _, newSession in
                 if newSession != nil && !hasLoadedGameData {
                     // Taze giriş VEYA kayıtlı oturum geri yüklendi → veri çek
@@ -95,12 +88,10 @@ struct KuyumcuApp: App {
         // Supabase'den veri yükle (yerel cache'in üzerine yazar)
         await SupabaseSaveService.load(into: gameState)
         await SupabaseSaveService.loadRates(into: gameState)
+        await gameState.fetchRatesIfNeeded()
         await SupabaseSaveService.loadEvents(into: gameState)
 
         await MainActor.run {
-            // Gerçek shop listesi yüklendikten sonra birikimi sıfırla ve timer'ı başlat
-            gameState.shopAccumulatedIncome = [:]
-            gameState.startPassiveTimer()
             isLoadingGameData = false
             // shopName hâlâ default "Misafir" ise yeni kullanıcı
             if gameState.shopName == "Misafir" {

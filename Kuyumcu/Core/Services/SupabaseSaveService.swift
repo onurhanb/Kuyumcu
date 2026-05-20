@@ -21,6 +21,8 @@ struct PlayerStatsRow: Codable {
     var weeklyProfit: Double
     var monthlyRevenue: Double
     var currentDay: Int
+    var passiveIncomeBalance: Double?
+    var passiveIncomeUpdatedAt: String?
     var totalTransactions: Int
     var acceptedDeals: Int
     var rejectedDeals: Int
@@ -47,6 +49,8 @@ struct PlayerStatsRow: Codable {
         case weeklyProfit               = "weekly_profit"
         case monthlyRevenue             = "monthly_revenue"
         case currentDay                 = "current_day"
+        case passiveIncomeBalance       = "passive_income_balance"
+        case passiveIncomeUpdatedAt     = "passive_income_updated_at"
         case totalTransactions          = "total_transactions"
         case acceptedDeals              = "accepted_deals"
         case rejectedDeals              = "rejected_deals"
@@ -74,6 +78,7 @@ struct PlayerStatsRow: Codable {
         self.weeklyProfit                = state.weeklyProfit
         self.monthlyRevenue              = state.monthlyRevenue
         self.currentDay                  = state.currentDay
+        self.passiveIncomeBalance        = state.passiveIncomeBalance
         self.totalTransactions           = state.totalTransactions
         self.acceptedDeals               = state.acceptedDeals
         self.rejectedDeals               = state.rejectedDeals
@@ -81,6 +86,7 @@ struct PlayerStatsRow: Codable {
         self.lifestyleScore              = state.lifestyleScore
         self.yesterdayCash               = state.yesterdayCash
         let isoFmt = ISO8601DateFormatter()
+        self.passiveIncomeUpdatedAt      = isoFmt.string(from: state.passiveIncomeUpdatedAt)
         self.dailyRewardDay              = state.dailyRewardDay
         self.dailyRewardClaimedAt        = state.dailyRewardClaimedAt.map { isoFmt.string(from: $0) }
     }
@@ -221,6 +227,17 @@ struct EventRow: Codable {
 // MARK: - Supabase Save Service
 
 class SupabaseSaveService {
+    private static func parseISODate(_ raw: String?) -> Date? {
+        guard let raw else { return nil }
+
+        let fractionalFormatter = ISO8601DateFormatter()
+        fractionalFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = fractionalFormatter.date(from: raw) {
+            return date
+        }
+
+        return ISO8601DateFormatter().date(from: raw)
+    }
 
     // MARK: - Save
 
@@ -373,6 +390,8 @@ class SupabaseSaveService {
         state.weeklyProfit                = row.weeklyProfit
         state.monthlyRevenue              = row.monthlyRevenue
         state.currentDay                  = row.currentDay
+        state.passiveIncomeBalance        = row.passiveIncomeBalance ?? 0
+        state.passiveIncomeUpdatedAt      = parseISODate(row.passiveIncomeUpdatedAt) ?? Date()
         state.totalTransactions           = row.totalTransactions
         state.acceptedDeals               = row.acceptedDeals
         state.rejectedDeals               = row.rejectedDeals
@@ -383,9 +402,7 @@ class SupabaseSaveService {
         // Günlük ödül: Supabase verisini ancak yerel veriden daha güncel/eşit ise uygula.
         // Uygulama kapanırken async save tamamlanmamış olabilir; o durumda
         // GameSaveService (UserDefaults) yedeği daha doğrudur.
-        let isoFmt = ISO8601DateFormatter()
-        isoFmt.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let supabaseClaimedAt = row.dailyRewardClaimedAt.flatMap { isoFmt.date(from: $0) }
+        let supabaseClaimedAt = parseISODate(row.dailyRewardClaimedAt)
         if let supabaseDate = supabaseClaimedAt {
             // Supabase'de tarih var — daha yeni ya da eşit ise kullan
             if state.dailyRewardClaimedAt == nil || supabaseDate >= state.dailyRewardClaimedAt! {

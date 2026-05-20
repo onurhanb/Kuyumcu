@@ -26,11 +26,19 @@ class RateFetchService {
     static let shared = RateFetchService()
     private let lastFetchKey = "rateFetchDate_v3"
 
-    // Türkiye saatiyle bugün 08:00'dan sonra en az bir kez çekildi mi?
-    func shouldFetch() -> Bool {
-        guard let last = UserDefaults.standard.object(forKey: lastFetchKey) as? Date else { return true }
+    // Türkiye saatiyle bugün 08:00'dan sonra güncel veri var mı?
+    func shouldFetch(currentSourceDate rawSourceDate: String?) -> Bool {
         var cal = Calendar(identifier: .gregorian)
         cal.timeZone = TimeZone(identifier: "Europe/Istanbul") ?? .current
+
+        if cal.component(.hour, from: Date()) >= 8 {
+            let todayStart = todayEightAM(using: cal)
+            if let sourceDate = parseSourceDate(rawSourceDate), sourceDate < todayStart {
+                return true
+            }
+        }
+
+        guard let last = UserDefaults.standard.object(forKey: lastFetchKey) as? Date else { return true }
         if !cal.isDateInToday(last) { return true }
         let lastHour = cal.component(.hour, from: last)
         let nowHour  = cal.component(.hour, from: Date())
@@ -48,10 +56,6 @@ class RateFetchService {
 
         UserDefaults.standard.set(Date(), forKey: lastFetchKey)
 
-        let fmt = DateFormatter()
-        fmt.locale     = Locale(identifier: "tr_TR")
-        fmt.dateFormat = "d MMMM yyyy"
-
         return FetchedRates(
             gramGoldTRY:     gold.gramAlis,
             gramGoldSell:    gold.gramSatis,
@@ -65,9 +69,37 @@ class RateFetchService {
             usdSell:         fx.usdSatis,
             eurTRY:          fx.eurAlis,
             eurSell:         fx.eurSatis,
-            dateString:      fmt.string(from: Date()),
+            dateString:      ISO8601DateFormatter().string(from: Date()),
             sourceName:      "genelpara.com"
         )
+    }
+
+    private func todayEightAM(using calendar: Calendar) -> Date {
+        var comps = calendar.dateComponents([.year, .month, .day], from: Date())
+        comps.hour = 8
+        comps.minute = 0
+        comps.second = 0
+        return calendar.date(from: comps) ?? Date()
+    }
+
+    private func parseSourceDate(_ raw: String?) -> Date? {
+        guard let raw, !raw.isEmpty else { return nil }
+
+        let fractionalISO = ISO8601DateFormatter()
+        fractionalISO.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = fractionalISO.date(from: raw) {
+            return date
+        }
+
+        if let date = ISO8601DateFormatter().date(from: raw) {
+            return date
+        }
+
+        let trDateFormatter = DateFormatter()
+        trDateFormatter.locale = Locale(identifier: "tr_TR")
+        trDateFormatter.timeZone = TimeZone(identifier: "Europe/Istanbul")
+        trDateFormatter.dateFormat = "d MMMM yyyy"
+        return trDateFormatter.date(from: raw)
     }
 
     // MARK: - Private

@@ -22,9 +22,8 @@ class GameState: ObservableObject {
     @Published var weeklyProfit: Double
     @Published var monthlyRevenue: Double
     @Published var currentDay: Int
-    @Published var shopAccumulatedIncome: [String: Double] = [:]   // per-shop birikimli pasif gelir
-    private var passiveIncomeTimer: AnyCancellable?
-    private var passiveTimerGeneration = 0                          // stale asyncAfter'ları iptal etmek için
+    @Published var passiveIncomeBalance: Double = 0
+    @Published var passiveIncomeUpdatedAt: Date = Date()
 
     // MARK: - Content
     @Published var activeEvents: [GameEvent]
@@ -135,14 +134,13 @@ class GameState: ObservableObject {
         // Not: Asıl yükleme KuyumcuApp içinde SupabaseSaveService.load() ile yapılır.
 
         startArrivalTimer()
-        startPassiveTimer()
     }
 
     // MARK: - Rate Fetch
 
     @MainActor
     func fetchRatesIfNeeded() async {
-        guard RateFetchService.shared.shouldFetch() else { return }
+        guard RateFetchService.shared.shouldFetch(currentSourceDate: rates.first?.sourceDate) else { return }
         do {
             let fetched = try await RateFetchService.shared.fetchRates()
             updateRates(from: fetched)
@@ -175,6 +173,7 @@ class GameState: ObservableObject {
         apply("USD",         buy: fetched.usdTRY,         sell: fetched.usdSell)
         apply("EUR",         buy: fetched.eurTRY,         sell: fetched.eurSell)
 
+        GameSaveService.save(self)
         Task { await SupabaseSaveService.save(self) }
     }
 
@@ -192,7 +191,25 @@ class GameState: ObservableObject {
     }
 
     var passiveIncomeAvailable: Double {
-        ownedShops.reduce(0.0) { $0 + (shopAccumulatedIncome[$1.name] ?? 0) }
+        passiveIncomeAvailable(at: Date())
+    }
+
+    var passiveIncomePerSecond: Double {
+        ownedShops.reduce(0.0) { total, shop in
+            total + (shop.locationType.passiveTick / 10.0)
+                * employeeMultiplier(for: shop)
+                * eventTrafficMultiplier
+        }
+    }
+
+    func passiveIncomeAvailable(at date: Date) -> Double {
+        let elapsed = max(0, date.timeIntervalSince(passiveIncomeUpdatedAt))
+        return passiveIncomeBalance + elapsed * passiveIncomePerSecond
+    }
+
+    func settlePassiveIncome(at date: Date = Date()) {
+        passiveIncomeBalance = passiveIncomeAvailable(at: date)
+        passiveIncomeUpdatedAt = date
     }
 
     var eventTrafficMultiplier: Double {
@@ -210,13 +227,15 @@ class GameState: ObservableObject {
     // MARK: - Actions
 
     func collectPassiveIncome() {
-        let income = passiveIncomeAvailable
+        let now = Date()
+        let income = passiveIncomeAvailable(at: now)
         guard income > 0 else { return }
         playerCash        += income
         inventory.tryCash += income
         dailyProfit       += income
         totalProfit       += income
-        shopAccumulatedIncome = [:]
+        passiveIncomeBalance = 0
+        passiveIncomeUpdatedAt = now
         GameSaveService.save(self)
         Task { await SupabaseSaveService.save(self) }
     }
@@ -227,6 +246,7 @@ class GameState: ObservableObject {
               ownedShops[idx].employeeCount < ownedShops[idx].employeeCapacity else { return }
         let cost = ownedShops[idx].locationType.employeeHireCost
         guard playerCash >= cost else { return }
+        settlePassiveIncome()
         playerCash -= cost
         inventory.tryCash -= cost
         ownedShops[idx].employeeCount += 1
@@ -309,6 +329,8 @@ class GameState: ObservableObject {
         weeklyProfit                = 0
         monthlyRevenue              = 0
         currentDay        = 1
+        passiveIncomeBalance        = 0
+        passiveIncomeUpdatedAt      = Date()
         totalTransactions = 0
         acceptedDeals               = 0
         rejectedDeals               = 0
@@ -401,6 +423,7 @@ class GameState: ObservableObject {
 
     func buyShop(_ shop: Shop) {
         guard playerCash >= shop.purchasePrice else { return }
+        settlePassiveIncome()
         playerCash        -= shop.purchasePrice
         inventory.tryCash -= shop.purchasePrice
         var purchased      = shop
@@ -504,60 +527,6 @@ class GameState: ObservableObject {
         arrivalTimer = Timer.publish(every: 10, on: .main, in: .common)
             .autoconnect()
             .sink { [weak self] _ in self?.spawnCustomer() }
-    }
-
-    /// Tüm dükkanları global duvar saatinin 10'ar saniyelik dilimlerine kilitler.
-    /// Herkes aynı anda tıklar: :00, :10, :20 … — dükkan satın alma zamanına bağlı değil.
-    func startPassiveTimer() {
-        passiveIncomeTimer?.cancel()
-        applyOfflineTicks()
-
-        passiveTimerGeneration += 1
-        let gen = passiveTimerGeneration
-
-        // Sonraki global 10-saniye sınırına kadar bekle
-        let now = Date().timeIntervalSince1970
-        let delay = 10.0 - now.truncatingRemainder(dividingBy: 10.0)
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-            guard let self, self.passiveTimerGeneration == gen else { return }
-            self.doPassiveTick()
-            self.passiveIncomeTimer = Timer.publish(every: 10, on: .main, in: .common)
-                .autoconnect()
-                .sink { [weak self] _ in self?.doPassiveTick() }
-        }
-    }
-
-    private func doPassiveTick() {
-        for shop in ownedShops {
-            let tick = shop.locationType.passiveTick
-                     * employeeMultiplier(for: shop)
-                     * eventTrafficMultiplier
-            shopAccumulatedIncome[shop.name, default: 0] += tick
-        }
-        // Hangi 10-sn dilimine ait olduğunu kaydet (offline hesabı için)
-        UserDefaults.standard.set(
-            floor(Date().timeIntervalSince1970 / 10),
-            forKey: "passiveTickPeriod"
-        )
-    }
-
-    /// Uygulama arka plandayken veya kapalıyken geçen süredeki tıklamaları hesaplar.
-    func applyOfflineTicks() {
-        let now = Date()
-        let currentPeriod = floor(now.timeIntervalSince1970 / 10)
-        let savedPeriod   = UserDefaults.standard.double(forKey: "passiveTickPeriod")
-        let effectiveFrom = savedPeriod > 0 ? savedPeriod : currentPeriod
-        let missed = Int(currentPeriod - effectiveFrom)
-        guard missed > 0 else { return }
-
-        for shop in ownedShops {
-            let tick = shop.locationType.passiveTick
-                     * employeeMultiplier(for: shop)
-                     * eventTrafficMultiplier
-            shopAccumulatedIncome[shop.name, default: 0] += Double(missed) * tick
-        }
-        UserDefaults.standard.set(currentPeriod, forKey: "passiveTickPeriod")
     }
 
     func spawnCustomer() {
