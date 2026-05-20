@@ -5,6 +5,7 @@ struct ProfileView: View {
     @EnvironmentObject var audioManager: AudioManager
     @StateObject private var adManager = AdManager.shared
     @StateObject private var consentManager = ConsentManager.shared
+    @StateObject private var pushService = PushNotificationService.shared
 
     @State private var showResetAlert    = false
     @State private var showSignOutAlert  = false
@@ -67,6 +68,23 @@ struct ProfileView: View {
                                            get: { audioManager.isCounterMusicEnabled },
                                            set: { audioManager.isCounterMusicEnabled = $0 }
                                        ))
+                        Divider().background(Color.gdlDivider)
+                        musicToggleRow("Günlük Kur Bildirimi", icon: "bell.badge.fill",
+                                       binding: Binding(
+                                           get: { pushService.dailyRateNotificationsEnabled },
+                                           set: { isEnabled in
+                                               Task {
+                                                   await pushService.setDailyRateNotificationsEnabled(isEnabled)
+                                               }
+                                           }
+                                       ))
+                        Divider().background(Color.gdlDivider)
+                        Button {
+                            pushService.openSystemNotificationSettings()
+                        } label: {
+                            actionSettingRow("Bildirim Ayarları", icon: "bell.fill")
+                        }
+                        .buttonStyle(.plain)
                         Divider().background(Color.gdlDivider)
                         settingRow("Uygulama Versiyonu", value: appVersionText)
                     }
@@ -628,6 +646,19 @@ struct ProfileView: View {
             Text(label).font(.gdlBody()).foregroundColor(.gdlTextPrimary)
             Spacer()
             Text(value).font(.gdlBody()).foregroundColor(.gdlTextSecondary)
+            Image(systemName: "chevron.right").font(.caption).foregroundColor(.gdlDivider)
+        }
+        .padding(.vertical, 3)
+    }
+
+    private func actionSettingRow(_ label: String, icon: String) -> some View {
+        HStack {
+            Image(systemName: icon)
+                .font(.system(size: 14))
+                .foregroundColor(.gdlGold)
+                .frame(width: 22)
+            Text(label).font(.gdlBody()).foregroundColor(.gdlTextPrimary)
+            Spacer()
             Image(systemName: "chevron.right").font(.caption).foregroundColor(.gdlDivider)
         }
         .padding(.vertical, 3)

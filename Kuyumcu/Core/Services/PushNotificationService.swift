@@ -8,8 +8,10 @@ final class PushNotificationService: NSObject, ObservableObject {
     static let shared = PushNotificationService()
 
     @Published private(set) var authorizationStatus: UNAuthorizationStatus = .notDetermined
+    @Published private(set) var dailyRateNotificationsEnabled: Bool
 
     private let savedTokenKey = "apnsDeviceToken"
+    private let dailyRateNotificationsEnabledKey = "dailyRateNotificationsEnabled"
     private let environment: String = {
         #if DEBUG
         return "development"
@@ -19,10 +21,16 @@ final class PushNotificationService: NSObject, ObservableObject {
     }()
 
     private override init() {
+        dailyRateNotificationsEnabled = UserDefaults.standard.object(forKey: dailyRateNotificationsEnabledKey) as? Bool ?? true
         super.init()
     }
 
     func configureAndSync() async {
+        guard dailyRateNotificationsEnabled else {
+            await syncSavedTokenIfPossible()
+            return
+        }
+
         await refreshAuthorizationStatus()
 
         if authorizationStatus == .notDetermined {
@@ -59,6 +67,22 @@ final class PushNotificationService: NSObject, ObservableObject {
         await syncTokenIfPossible(token)
     }
 
+    func setDailyRateNotificationsEnabled(_ isEnabled: Bool) async {
+        dailyRateNotificationsEnabled = isEnabled
+        UserDefaults.standard.set(isEnabled, forKey: dailyRateNotificationsEnabledKey)
+
+        if isEnabled {
+            await configureAndSync()
+        } else {
+            await syncSavedTokenIfPossible()
+        }
+    }
+
+    func openSystemNotificationSettings() {
+        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+        UIApplication.shared.open(url)
+    }
+
     private func refreshAuthorizationStatus() async {
         let settings = await UNUserNotificationCenter.current().notificationSettings()
         authorizationStatus = settings.authorizationStatus
@@ -73,7 +97,11 @@ final class PushNotificationService: NSObject, ObservableObject {
                 "register-push-token",
                 options: FunctionInvokeOptions(
                     method: .post,
-                    body: RegisterPushTokenRequest(token: token, environment: environment)
+                    body: RegisterPushTokenRequest(
+                        token: token,
+                        environment: environment,
+                        isActive: dailyRateNotificationsEnabled
+                    )
                 )
             )
 
@@ -89,7 +117,15 @@ final class PushNotificationService: NSObject, ObservableObject {
 private struct RegisterPushTokenRequest: Encodable {
     let token: String
     let environment: String
+    let isActive: Bool
     let platform = "ios"
+
+    enum CodingKeys: String, CodingKey {
+        case token
+        case environment
+        case isActive = "is_active"
+        case platform
+    }
 }
 
 private struct RegisterPushTokenResponse: Decodable {

@@ -27,6 +27,7 @@ Deno.serve(async (req) => {
     const deviceToken = String(body.token ?? "").trim();
     const environment = String(body.environment ?? "").trim();
     const platform = String(body.platform ?? "ios").trim();
+    const isActive = body.is_active === undefined ? true : Boolean(body.is_active);
 
     if (!/^[a-f0-9]{64,}$/i.test(deviceToken)) {
       return json({ success: false, error: "Invalid APNs token" }, 400);
@@ -46,7 +47,7 @@ Deno.serve(async (req) => {
       token: deviceToken,
       platform,
       environment,
-      is_active: true,
+      is_active: isActive,
       last_seen_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }, { onConflict: "token" });
