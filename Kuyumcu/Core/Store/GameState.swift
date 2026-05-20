@@ -105,10 +105,10 @@ class GameState: ObservableObject {
     // MARK: - Init
 
     init() {
-        let shops = MockGameData.allShops
+        let shops = GameSeedData.allShops
         self.playerCash                  = 1_000_000
-        self.inventory                   = MockGameData.initialInventory
-        self.rates                       = MockGameData.initialRates
+        self.inventory                   = GameSeedData.initialInventory
+        self.rates                       = GameSeedData.initialRates
         self.ownedShops                  = shops.filter { $0.isOwned }
         self.lockedShops                 = shops.filter { !$0.isOwned }
         let firstShop                    = shops.first(where: { $0.isOwned })
@@ -119,11 +119,11 @@ class GameState: ObservableObject {
         self.weeklyProfit                = 0
         self.monthlyRevenue              = 0
         self.currentDay  = 1
-        self.activeEvents = MockGameData.allEvents
+        self.activeEvents = GameSeedData.allEvents
         self.totalTransactions           = 0
         self.acceptedDeals               = 0
         self.rejectedDeals               = 0
-        self.lifestyleItems              = MockGameData.allLifestyleItems
+        self.lifestyleItems              = GameSeedData.allLifestyleItems
         self.lifestyleScore              = 0
         self.trustScore                  = 50
         self.yesterdayCash               = 0
@@ -145,7 +145,7 @@ class GameState: ObservableObject {
             let fetched = try await RateFetchService.shared.fetchRates()
             updateRates(from: fetched)
         } catch {
-            // Ağ hatası → mevcut (mock/kayıtlı) fiyatlar geçerli kalır
+            // Ağ hatası → mevcut (kayıtlı/kayıtlı) fiyatlar geçerli kalır
         }
     }
 
@@ -250,6 +250,10 @@ class GameState: ObservableObject {
         playerCash -= cost
         inventory.tryCash -= cost
         ownedShops[idx].employeeCount += 1
+        if activeShop?.id == shopId {
+            activeShop = ownedShops[idx]
+        }
+        GameSaveService.save(self)
         Task { await SupabaseSaveService.save(self) }
     }
 
@@ -261,6 +265,7 @@ class GameState: ObservableObject {
         if currentDay % 7  == 0 { weeklyProfit   = 0 }
         if currentDay % 30 == 0 { monthlyRevenue  = 0 }
         startArrivalTimer()
+        GameSaveService.save(self)
         Task { await SupabaseSaveService.save(self) }
     }
 
@@ -287,6 +292,7 @@ class GameState: ObservableObject {
             playerCash        -= total
             inventory.tryCash -= total
         } else {
+            guard hasEnoughInventory(category: category, quantity: qty) else { return }
             playerCash        += total
             inventory.tryCash += total
         }
@@ -307,22 +313,32 @@ class GameState: ObservableObject {
         case .jewelry:
             if isBuying { inventory.gramGold += qty } else { inventory.gramGold -= qty }
         }
+        GameSaveService.save(self)
         Task { await SupabaseSaveService.save(self) }
     }
 
     // MARK: - Reset Game
 
     func resetGame() {
-        // Supabase oturumunu kapat (KuyumcuApp auth gate'i LoginView'e yönlendirir)
-        Task { try? await AuthService.shared.signOut() }
-        let shops = MockGameData.allShops
+        resetLocalProgress(keepsShopName: true, persistsChanges: true, syncsCloud: true)
+    }
+
+    func resetLocalProgress(
+        keepsShopName: Bool = false,
+        persistsChanges: Bool = false,
+        syncsCloud: Bool = false
+    ) {
+        let retainedShopName = shopName
+        let retainedRates = rates
+        let shops = GameSeedData.allShops
         let first = shops.first(where: { $0.isOwned })
         playerCash                  = 1_000_000
-        inventory                   = MockGameData.initialInventory
-        rates                       = MockGameData.initialRates
+        inventory                   = GameSeedData.initialInventory
+        rates                       = retainedRates
         ownedShops                  = shops.filter { $0.isOwned }
         lockedShops                 = shops.filter { !$0.isOwned }
         activeShop                  = first
+        shopName = keepsShopName ? retainedShopName : "Misafir"
         customerSatisfaction        = 50
         totalProfit                 = 0
         dailyProfit                 = 0
@@ -334,14 +350,24 @@ class GameState: ObservableObject {
         totalTransactions = 0
         acceptedDeals               = 0
         rejectedDeals               = 0
-        lifestyleItems              = MockGameData.allLifestyleItems
+        lifestyleItems              = GameSeedData.allLifestyleItems
         lifestyleScore              = 0
         trustScore                  = 50
         yesterdayCash               = 0
+        dailyRewardDay              = 0
+        dailyRewardClaimedAt        = nil
         isBargaining                = false
         customerQueue               = []
         currentCustomer             = nil
+        if persistsChanges {
+            GameSaveService.save(self)
+        } else {
+            GameSaveService.reset()
+        }
         startArrivalTimer()
+        if syncsCloud {
+            Task { await SupabaseSaveService.save(self) }
+        }
     }
 
     func adjustSatisfaction(_ delta: Int) {
@@ -350,18 +376,22 @@ class GameState: ObservableObject {
 
     // MARK: - Transaction Processing
 
-    func processAcceptedTransaction(offer: Double, direction: TransactionDirection, items: [RequestItem]) {
+    @discardableResult
+    func processAcceptedTransaction(offer: Double, direction: TransactionDirection, items: [RequestItem]) -> Bool {
+        guard offer > 0 else { return false }
         let baseValue = calculateBaseValue(for: items, direction: direction)
         let profit: Double
 
         switch direction {
         case .customerBuysFromPlayer:
+            guard hasEnoughStock(for: items, direction: direction) else { return false }
             profit = offer - baseValue
             playerCash        += offer
             inventory.tryCash += offer
             deductInventory(items: items)
 
         case .customerSellsToPlayer:
+            guard playerCash >= offer else { return false }
             profit = baseValue - offer
             playerCash        -= offer
             inventory.tryCash -= offer
@@ -380,6 +410,7 @@ class GameState: ObservableObject {
         advanceCustomer()
         GameSaveService.save(self)
         Task { await SupabaseSaveService.save(self) }
+        return true
     }
 
     func processRejectedTransaction() {
@@ -430,6 +461,7 @@ class GameState: ObservableObject {
         purchased.isOwned  = true
         lockedShops.removeAll { $0.id == shop.id }
         ownedShops.append(purchased)
+        GameSaveService.save(self)
         Task { await SupabaseSaveService.save(self) }
     }
 
@@ -441,6 +473,7 @@ class GameState: ObservableObject {
             lifestyleItems[idx].isOwned = true
         }
         lifestyleScore += item.lifestylePoints
+        GameSaveService.save(self)
         Task { await SupabaseSaveService.save(self) }
     }
 
@@ -450,17 +483,22 @@ class GameState: ObservableObject {
     func hasEnoughStock(for items: [RequestItem], direction: TransactionDirection) -> Bool {
         guard direction == .customerBuysFromPlayer else { return true }
         for item in items {
-            switch item.productCategory {
-            case .goldGram:    if inventory.gramGold    < item.quantity { return false }
-            case .goldQuarter: if inventory.quarterGold < item.quantity { return false }
-            case .goldHalf:    if inventory.halfGold    < item.quantity { return false }
-            case .goldFull:    if inventory.fullGold    < item.quantity { return false }
-            case .currencyUSD: if inventory.usd         < item.quantity { return false }
-            case .currencyEUR: if inventory.eur         < item.quantity { return false }
-            case .jewelry:     if inventory.gramGold    < item.quantity { return false }
-            }
+            if !hasEnoughInventory(category: item.productCategory, quantity: item.quantity) { return false }
         }
         return true
+    }
+
+    func hasEnoughInventory(category: ProductCategory, quantity: Double) -> Bool {
+        guard quantity > 0 else { return false }
+        switch category {
+        case .goldGram:    return inventory.gramGold    >= quantity
+        case .goldQuarter: return inventory.quarterGold >= quantity
+        case .goldHalf:    return inventory.halfGold    >= quantity
+        case .goldFull:    return inventory.fullGold    >= quantity
+        case .currencyUSD: return inventory.usd         >= quantity
+        case .currencyEUR: return inventory.eur         >= quantity
+        case .jewelry:     return inventory.gramGold    >= quantity
+        }
     }
 
     // MARK: - Value Calculation

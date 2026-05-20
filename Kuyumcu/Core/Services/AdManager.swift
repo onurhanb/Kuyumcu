@@ -3,12 +3,12 @@
 //  Kuyumcu — Gold Dealer Life
 //
 //  Rewarded Ad yönetimi (Google AdMob)
-//  Test Ad Unit: ca-app-pub-3940256099942544/1712485313
-//  Gerçek Ad Unit: AdMob panelinden alınacak
+//  Debug build'lerde Google test reklamı, Release build'lerde canlı rewarded ad kullanılır.
 
 import GoogleMobileAds
 import Combine
 import UIKit
+import UserMessagingPlatform
 
 @MainActor
 class AdManager: NSObject, ObservableObject {
@@ -19,9 +19,11 @@ class AdManager: NSObject, ObservableObject {
     @Published var isLoading = false
 
     // Rewarded Ad Unit ID
-    // TEST: ca-app-pub-3940256099942544/1712485313 (Google resmi test ID)
-    // CANLI: ca-app-pub-9919444685136366/2053652572 (Gerçek ID — yayına alınca aç)
+    #if DEBUG
     private let adUnitID = "ca-app-pub-3940256099942544/1712485313"
+    #else
+    private let adUnitID = "ca-app-pub-9919444685136366/2053652572"
+    #endif
 
     private var rewardedAd: RewardedAd?
     private var rewardCompletion: (() -> Void)?
@@ -30,12 +32,15 @@ class AdManager: NSObject, ObservableObject {
 
     override private init() {
         super.init()
-        loadAd()
     }
 
     // MARK: - Load
 
     func loadAd() {
+        guard ConsentInformation.shared.canRequestAds else {
+            isAdReady = false
+            return
+        }
         guard !isLoading else { return }
         isLoading = true
         isAdReady = false

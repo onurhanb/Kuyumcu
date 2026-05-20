@@ -263,7 +263,7 @@ struct ShopCard: View {
                                     .font(.system(size: 16))
                                     .foregroundColor(canHire ? .gdlGold : .gdlTextSecondary)
                             }
-                            .disabled(!canHire)
+                            .buttonStyle(.plain)
                         }
                     }
                 }

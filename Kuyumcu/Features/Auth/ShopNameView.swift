@@ -58,7 +58,7 @@ struct ShopNameView: View {
                 // Giriş alanı
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
-                        TextField("Örn: Bucak Ticaret", text: $shopName)
+                        TextField("Örn: Bucak Kuyumculuk", text: $shopName)
                             .font(.system(size: 17))
                             .foregroundColor(.gdlTextPrimary)
                             .autocorrectionDisabled()

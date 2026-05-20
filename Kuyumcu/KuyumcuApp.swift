@@ -4,18 +4,18 @@
 //
 
 import SwiftUI
-import GoogleMobileAds
 
 @main
 struct KuyumcuApp: App {
+    @Environment(\.scenePhase) private var scenePhase
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+
     @StateObject private var gameState      = GameState()
     @StateObject private var authService    = AuthService.shared
     @StateObject private var networkMonitor = NetworkMonitor.shared
     @StateObject private var audioManager   = AudioManager.shared
-
-    init() {
-        MobileAds.shared.start()
-    }
+    @StateObject private var consentManager = ConsentManager.shared
+    @StateObject private var pushService    = PushNotificationService.shared
 
     // Yeni kullanıcı → dükkan adı kurulumu
     @State private var needsShopSetup    = false
@@ -61,6 +61,9 @@ struct KuyumcuApp: App {
                 }
             }
             .preferredColorScheme(.dark)
+            .task {
+                await consentManager.configureForAdsIfNeeded()
+            }
             .onChange(of: authService.session) { _, newSession in
                 if newSession != nil && !hasLoadedGameData {
                     // Taze giriş VEYA kayıtlı oturum geri yüklendi → veri çek
@@ -69,6 +72,14 @@ struct KuyumcuApp: App {
                     // Oturum kapandı → state sıfırla
                     needsShopSetup    = false
                     hasLoadedGameData = false
+                }
+            }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active {
+                    Task {
+                        await consentManager.requestTrackingAuthorizationIfNeeded()
+                        await pushService.syncSavedTokenIfPossible()
+                    }
                 }
             }
         }
@@ -90,6 +101,7 @@ struct KuyumcuApp: App {
         await SupabaseSaveService.loadRates(into: gameState)
         await gameState.fetchRatesIfNeeded()
         await SupabaseSaveService.loadEvents(into: gameState)
+        await pushService.configureAndSync()
 
         await MainActor.run {
             isLoadingGameData = false

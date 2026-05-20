@@ -1,7 +1,7 @@
 import Foundation
 
 /// Lightweight UserDefaults-based persistence for numeric game state.
-/// Shop / inventory / upgrade objects are re-created from MockData on fresh launch;
+/// Shop / inventory / upgrade objects are re-created from seed data on fresh launch;
 /// only the numeric progression fields survive across restarts.
 class GameSaveService {
 
@@ -33,6 +33,7 @@ class GameSaveService {
             "shopName":                    state.shopName,
             // Owned shop names (simplified – match by name on load)
             "ownedShopNames":              state.ownedShops.map { $0.name },
+            "ownedShopEmployeeCounts":      Dictionary(uniqueKeysWithValues: state.ownedShops.map { ($0.name, $0.employeeCount) }),
             // Rates cache
             "ratesBuyPrices":              Dictionary(uniqueKeysWithValues: state.rates.map { ($0.type, $0.buyPrice) }),
             "ratesSellPrices":             Dictionary(uniqueKeysWithValues: state.rates.map { ($0.type, $0.sellPrice) }),
@@ -75,7 +76,7 @@ class GameSaveService {
         state.trustScore                  = dict["trustScore"]                  as? Double ?? state.trustScore
         state.shopName                    = dict["shopName"]                    as? String ?? state.shopName
 
-        // Restore cached rates (overwrites mock values if available)
+        // Restore cached rates (overwrites kayıtlı values if available)
         if let buyPrices  = dict["ratesBuyPrices"]  as? [String: Double],
            let sellPrices = dict["ratesSellPrices"] as? [String: Double] {
             let srcName = dict["ratesSourceName"] as? String ?? ""
@@ -93,8 +94,14 @@ class GameSaveService {
 
         // Restore owned shops
         if let ownedNames = dict["ownedShopNames"] as? [String] {
-            let allShops = MockGameData.allShops
-            state.ownedShops  = allShops.filter { ownedNames.contains($0.name) }.map { var s = $0; s.isOwned = true; return s }
+            let allShops = GameSeedData.allShops
+            let employeeCounts = dict["ownedShopEmployeeCounts"] as? [String: Int] ?? [:]
+            state.ownedShops  = allShops.filter { ownedNames.contains($0.name) }.map {
+                var s = $0
+                s.isOwned = true
+                s.employeeCount = employeeCounts[s.name] ?? s.employeeCount
+                return s
+            }
             state.lockedShops = allShops.filter { !ownedNames.contains($0.name) }
             state.activeShop  = state.ownedShops.first
         }

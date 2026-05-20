@@ -6,7 +6,6 @@ struct LoginView: View {
 
     @State private var isSigningIn         = false
     @State private var errorMessage: String?
-    @State private var showGoogleSoon      = false
     @State private var coordinator: AppleSignInCoordinator?
 
     var body: some View {
@@ -53,28 +52,6 @@ struct LoginView: View {
                         startAppleSignIn()
                     }
 
-                    // Google — yakında
-                    ZStack(alignment: .topTrailing) {
-                        loginButton(
-                            icon: "g.circle.fill",
-                            iconColor: Color(red: 0.92, green: 0.26, blue: 0.21).opacity(0.4),
-                            title: "Google ile Giriş Yap",
-                            style: .card,
-                            disabled: true
-                        ) {
-                            showGoogleSoon = true
-                        }
-
-                        Text("Yakında")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundColor(.gdlBackground)
-                            .padding(.horizontal, 7)
-                            .padding(.vertical, 3)
-                            .background(Color.gdlTextSecondary.opacity(0.55))
-                            .cornerRadius(6)
-                            .offset(x: -12, y: -6)
-                    }
-
                     // Hata mesajı
                     if let errorMessage {
                         Text(errorMessage)
@@ -93,11 +70,6 @@ struct LoginView: View {
                 .padding(.horizontal, 28)
                 .padding(.bottom, 52)
             }
-        }
-        .alert("Yakında", isPresented: $showGoogleSoon) {
-            Button("Tamam", role: .cancel) {}
-        } message: {
-            Text("Google ile giriş özelliği çok yakında eklenecek.")
         }
     }
 
@@ -239,4 +211,3 @@ class AppleSignInCoordinator: NSObject,
 #Preview {
     LoginView(onAuthLogin: {})
 }
-

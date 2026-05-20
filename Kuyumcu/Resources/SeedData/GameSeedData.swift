@@ -1,6 +1,6 @@
 import Foundation
 
-struct MockGameData {
+struct GameSeedData {
 
     // MARK: - Initial State
 

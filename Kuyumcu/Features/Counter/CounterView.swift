@@ -593,11 +593,16 @@ struct CounterView: View {
         )
         switch result {
         case .accepted:
-            let base = gameState.calculateBaseValue(for: customer.request.items, direction: customer.request.direction)
-            lastProfit = customer.request.direction == .customerBuysFromPlayer ? offerValue - base : base - offerValue
-            lastResult = .accepted
-            showResult = true
-            gameState.processAcceptedTransaction(offer: offerValue, direction: customer.request.direction, items: customer.request.items)
+            if gameState.processAcceptedTransaction(offer: offerValue, direction: customer.request.direction, items: customer.request.items) {
+                let base = gameState.calculateBaseValue(for: customer.request.items, direction: customer.request.direction)
+                lastProfit = customer.request.direction == .customerBuysFromPlayer ? offerValue - base : base - offerValue
+                lastResult = .accepted
+                showResult = true
+            } else {
+                lastProfit = 0
+                lastResult = .rejected
+                showResult = true
+            }
 
         case .bargained:
             lastResult = .bargained

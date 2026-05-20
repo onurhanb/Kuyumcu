@@ -41,8 +41,10 @@ Deno.serve(async (_req) => {
 
     if (error) throw error;
 
+    const notification = await sendDailyRateNotifications(supabase, rates);
+
     return new Response(
-      JSON.stringify({ success: true, rates }),
+      JSON.stringify({ success: true, rates, notification }),
       { headers: { "Content-Type": "application/json" } }
     );
   } catch (err) {
@@ -65,6 +67,172 @@ interface Rates {
   fullBuy:    number; fullSell:    number; fullChangeDir:    number;
   usdBuy:     number; usdSell:     number; usdChangeDir:     number;
   eurBuy:     number; eurSell:     number; eurChangeDir:     number;
+}
+
+// ---------------------------------------------------------------------------
+// APNs Push Notification
+// ---------------------------------------------------------------------------
+
+interface PushTokenRow {
+  token: string;
+  environment: "development" | "production";
+}
+
+async function sendDailyRateNotifications(
+  supabase: ReturnType<typeof createClient>,
+  rates: Rates,
+): Promise<{ attempted: number; sent: number; failed: number; skipped?: string }> {
+  const teamId = Deno.env.get("APNS_TEAM_ID");
+  const keyId = Deno.env.get("APNS_KEY_ID");
+  const bundleId = Deno.env.get("APNS_BUNDLE_ID");
+  const privateKey = Deno.env.get("APNS_PRIVATE_KEY");
+
+  if (!teamId || !keyId || !bundleId || !privateKey) {
+    return { attempted: 0, sent: 0, failed: 0, skipped: "APNs secrets missing" };
+  }
+
+  const { data, error } = await supabase
+    .from("push_tokens")
+    .select("token, environment")
+    .eq("platform", "ios")
+    .eq("is_active", true);
+
+  if (error) throw error;
+
+  const tokens = (data ?? []) as PushTokenRow[];
+  if (tokens.length === 0) {
+    return { attempted: 0, sent: 0, failed: 0 };
+  }
+
+  const jwt = await createAPNsJWT(teamId, keyId, privateKey);
+  const body = buildNotificationBody(rates);
+
+  let sent = 0;
+  let failed = 0;
+
+  await Promise.all(tokens.map(async (row) => {
+    const endpoint = row.environment === "production"
+      ? "https://api.push.apple.com"
+      : "https://api.sandbox.push.apple.com";
+
+    const res = await fetch(`${endpoint}/3/device/${row.token}`, {
+      method: "POST",
+      headers: {
+        authorization: `bearer ${jwt}`,
+        "apns-topic": bundleId,
+        "apns-push-type": "alert",
+        "apns-priority": "10",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        aps: {
+          alert: {
+            title: "Günaydın",
+            body,
+          },
+          sound: "default",
+        },
+      }),
+    });
+
+    if (res.ok) {
+      sent += 1;
+      return;
+    }
+
+    failed += 1;
+    const responseText = await res.text();
+    console.error("APNs send failed:", res.status, responseText);
+
+    if (res.status === 400 || res.status === 410) {
+      await supabase
+        .from("push_tokens")
+        .update({ is_active: false, updated_at: new Date().toISOString() })
+        .eq("token", row.token);
+    }
+  }));
+
+  return { attempted: tokens.length, sent, failed };
+}
+
+function buildNotificationBody(rates: Rates): string {
+  const date = new Intl.DateTimeFormat("tr-TR", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "Europe/Istanbul",
+  }).format(new Date());
+
+  return `${date}. Dolar ${formatDecimal(rates.usdSell)}, Euro ${formatDecimal(rates.eurSell)}, Gram ${formatWhole(rates.gramSell)}, Çeyrek ${formatWhole(rates.quarterSell)}`;
+}
+
+function formatDecimal(value: number): string {
+  return new Intl.NumberFormat("tr-TR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
+function formatWhole(value: number): string {
+  return new Intl.NumberFormat("tr-TR", {
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+async function createAPNsJWT(teamId: string, keyId: string, privateKeyPEM: string): Promise<string> {
+  const header = base64UrlEncode(JSON.stringify({ alg: "ES256", kid: keyId }));
+  const payload = base64UrlEncode(JSON.stringify({
+    iss: teamId,
+    iat: Math.floor(Date.now() / 1000),
+  }));
+  const signingInput = `${header}.${payload}`;
+
+  const key = await crypto.subtle.importKey(
+    "pkcs8",
+    pemToArrayBuffer(privateKeyPEM),
+    { name: "ECDSA", namedCurve: "P-256" },
+    false,
+    ["sign"],
+  );
+
+  const signature = await crypto.subtle.sign(
+    { name: "ECDSA", hash: "SHA-256" },
+    key,
+    new TextEncoder().encode(signingInput),
+  );
+
+  return `${signingInput}.${base64UrlEncode(signature)}`;
+}
+
+function pemToArrayBuffer(pem: string): ArrayBuffer {
+  const normalized = pem.replace(/\\n/g, "\n");
+  const base64 = normalized
+    .replace("-----BEGIN PRIVATE KEY-----", "")
+    .replace("-----END PRIVATE KEY-----", "")
+    .replace(/\s/g, "");
+
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes.buffer;
+}
+
+function base64UrlEncode(input: string | ArrayBuffer): string {
+  const bytes = typeof input === "string"
+    ? new TextEncoder().encode(input)
+    : new Uint8Array(input);
+
+  let binary = "";
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+
+  return btoa(binary)
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
 }
 
 async function scrapeRates(): Promise<Rates> {

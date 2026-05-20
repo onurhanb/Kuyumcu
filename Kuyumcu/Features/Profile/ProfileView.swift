@@ -4,11 +4,17 @@ struct ProfileView: View {
     @EnvironmentObject var gameState: GameState
     @EnvironmentObject var audioManager: AudioManager
     @StateObject private var adManager = AdManager.shared
+    @StateObject private var consentManager = ConsentManager.shared
 
     @State private var showResetAlert    = false
     @State private var showSignOutAlert  = false
     @State private var showAdUnavailable = false
+    @State private var showDeleteAccountAlert = false
+    @State private var showDeleteAccountFinalAlert = false
+    @State private var showDeleteAccountError = false
     @State private var isWatchingAd      = false
+    @State private var isDeletingAccount = false
+    @State private var deleteAccountErrorMessage = ""
 
     // MARK: - Günlük reset hakkı
     private let resetKey = "lastResetDate"
@@ -62,9 +68,7 @@ struct ProfileView: View {
                                            set: { audioManager.isCounterMusicEnabled = $0 }
                                        ))
                         Divider().background(Color.gdlDivider)
-                        settingRow("Bildirimler", value: "Kapalı")
-                        Divider().background(Color.gdlDivider)
-                        settingRow("Uygulama Versiyonu", value: "1.0.0 Alpha")
+                        settingRow("Uygulama Versiyonu", value: appVersionText)
                     }
                     .padding(.horizontal)
 
@@ -86,6 +90,50 @@ struct ProfileView: View {
                     }
                     .padding(.horizontal)
                     .padding(.top, 8)
+
+                    // Hesap silme butonu
+                    Button {
+                        showDeleteAccountAlert = true
+                    } label: {
+                        HStack(spacing: 10) {
+                            if isDeletingAccount {
+                                ProgressView().tint(.white)
+                            } else {
+                                Image(systemName: "trash.fill")
+                                    .font(.system(size: 18))
+                            }
+                            Text(isDeletingAccount ? "Hesap Siliniyor..." : "Hesabımı Sil")
+                                .font(.system(size: 15, weight: .semibold))
+                        }
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(Color.gdlNegative.opacity(isDeletingAccount ? 0.55 : 0.85))
+                        .cornerRadius(14)
+                    }
+                    .disabled(isDeletingAccount)
+                    .padding(.horizontal)
+                    .padding(.top, 8)
+
+                    if consentManager.isPrivacyOptionsRequired {
+                        Button {
+                            Task { await consentManager.presentPrivacyOptions() }
+                        } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: "hand.raised.fill")
+                                    .font(.system(size: 18))
+                                Text("Gizlilik Seçenekleri")
+                                    .font(.system(size: 15, weight: .semibold))
+                            }
+                            .foregroundColor(.gdlTextPrimary)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(Color.gdlCardSecondary)
+                            .cornerRadius(14)
+                        }
+                        .padding(.horizontal)
+                        .padding(.top, 8)
+                    }
 
                     // Oyunu Sıfırla butonu
                     Button {
@@ -142,6 +190,27 @@ struct ProfileView: View {
         } message: {
             Text("Hesabından çıkış yapılacak. Verilerın bulutta güvende, tekrar giriş yapabilirsin.")
         }
+        .alert("Hesap Silme", isPresented: $showDeleteAccountAlert) {
+            Button("Devam Et", role: .destructive) {
+                showDeleteAccountFinalAlert = true
+            }
+            Button("İptal", role: .cancel) {}
+        } message: {
+            Text("Bu işlem hesabını, bulut kaydını, dükkanlarını, envanterini ve oyun ilerlemeni kalıcı olarak siler.")
+        }
+        .alert("Son Onay", isPresented: $showDeleteAccountFinalAlert) {
+            Button("Kalıcı Olarak Sil", role: .destructive) {
+                deleteAccount()
+            }
+            Button("İptal", role: .cancel) {}
+        } message: {
+            Text("Bu işlem geri alınamaz. Hesabın ve bağlı oyun verilerin kalıcı olarak silinecek.")
+        }
+        .alert("Hesap Silinemedi", isPresented: $showDeleteAccountError) {
+            Button("Tamam", role: .cancel) {}
+        } message: {
+            Text(deleteAccountErrorMessage)
+        }
         .alert("Oyunu Sıfırla", isPresented: $showResetAlert) {
             Button("Sıfırla", role: .destructive) {
                 markResetUsed()
@@ -149,7 +218,7 @@ struct ProfileView: View {
             }
             Button("İptal", role: .cancel) {}
         } message: {
-            Text("Tüm ilerleme silinecek ve oyun baştan başlayacak. Bu işlem geri alınamaz.")
+            Text("Dükkan adın korunur; nakit, envanter, dükkanlar, personel, pasif gelir, istatistikler ve yaşam tarzı ilerlemesi başlangıç durumuna döner. Bu işlem geri alınamaz.")
         }
         .alert("Reklam Hazır Değil", isPresented: $showAdUnavailable) {
             Button("Tamam", role: .cancel) {}
@@ -157,6 +226,27 @@ struct ProfileView: View {
             Text(canResetToday
                  ? "Reklam yükleniyor, biraz sonra tekrar dene."
                  : "Bugünlük sıfırlama hakkını kullandın. Yarın tekrar dene.")
+        }
+    }
+
+    private func deleteAccount() {
+        guard !isDeletingAccount else { return }
+        isDeletingAccount = true
+
+        Task {
+            do {
+                try await AuthService.shared.deleteAccount()
+                await MainActor.run {
+                    gameState.resetLocalProgress()
+                    isDeletingAccount = false
+                }
+            } catch {
+                await MainActor.run {
+                    deleteAccountErrorMessage = error.localizedDescription
+                    showDeleteAccountError = true
+                    isDeletingAccount = false
+                }
+            }
         }
     }
 
@@ -541,6 +631,12 @@ struct ProfileView: View {
             Image(systemName: "chevron.right").font(.caption).foregroundColor(.gdlDivider)
         }
         .padding(.vertical, 3)
+    }
+
+    private var appVersionText: String {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
+        return "\(version) (\(build))"
     }
 }
 

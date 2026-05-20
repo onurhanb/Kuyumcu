@@ -77,6 +77,52 @@ class AuthService: ObservableObject {
         try await supabase.auth.signOut()
         session = nil
     }
+
+    func deleteAccount() async throws {
+        guard let token = session?.accessToken else {
+            throw AuthServiceError.missingSession
+        }
+
+        supabase.functions.setAuth(token: token)
+        let response: DeleteAccountResponse = try await supabase.functions.invoke(
+            "delete-account",
+            options: FunctionInvokeOptions(method: .post, body: EmptyFunctionBody())
+        )
+
+        guard response.success else {
+            throw AuthServiceError.accountDeletionFailed(response.error ?? "Bilinmeyen hata")
+        }
+
+        GameSaveService.reset()
+
+        do {
+            try await supabase.auth.signOut()
+        } catch {
+            // Auth kullanıcısı sunucuda silindiği için signOut hata verebilir; lokal oturumu yine kapatırız.
+        }
+        session = nil
+    }
+}
+
+private struct EmptyFunctionBody: Encodable {}
+
+private struct DeleteAccountResponse: Decodable {
+    let success: Bool
+    let error: String?
+}
+
+enum AuthServiceError: LocalizedError {
+    case missingSession
+    case accountDeletionFailed(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .missingSession:
+            return "Aktif oturum bulunamadı."
+        case .accountDeletionFailed(let message):
+            return "Hesap silinemedi: \(message)"
+        }
+    }
 }
 
 // MARK: - Nonce Helpers (Apple Sign In güvenliği için)

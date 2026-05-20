@@ -84,11 +84,16 @@ struct ShopsView: View {
                 }
                 confirmHire = nil
             }
+            .disabled(confirmHire.map { gameState.playerCash < $0.locationType.employeeHireCost } ?? true)
             Button("Hayır", role: .cancel) { confirmHire = nil }
         } message: {
             if let shop = confirmHire {
                 let cost = shop.locationType.employeeHireCost
-                Text("\(shop.name) için personel ücreti \(FormatUtils.tl(cost)).\nMevcut nakit: \(FormatUtils.tl(gameState.playerCash))\n\nPersonel işe almak istiyor musunuz?")
+                if gameState.playerCash >= cost {
+                    Text("\(shop.name) için personel ücreti \(FormatUtils.tl(cost)).\nMevcut nakit: \(FormatUtils.tl(gameState.playerCash))\n\nPersonel işe almak istiyor musunuz?")
+                } else {
+                    Text("\(shop.name) için personel ücreti \(FormatUtils.tl(cost)).\nMevcut nakit: \(FormatUtils.tl(gameState.playerCash))\n\nPersonel almak için yeterli nakit yok.")
+                }
             }
         }
     }

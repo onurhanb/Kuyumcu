@@ -368,7 +368,9 @@ struct HomeView: View {
     }
 
     private func shopRow(shop: Shop) -> some View {
-        HStack(spacing: 12) {
+        let hourlyPassiveIncome = shop.locationType.passiveTick * 360 * gameState.employeeMultiplier(for: shop)
+
+        return HStack(spacing: 12) {
             ZStack {
                 RoundedRectangle(cornerRadius: 10)
                     .fill(Color.gdlGold.opacity(0.15))
@@ -390,7 +392,7 @@ struct HomeView: View {
                         .font(.gdlCaption())
                         .foregroundColor(.gdlTextSecondary)
                     Text("·").foregroundColor(.gdlTextSecondary).font(.caption)
-                    Text("₺\(Int(shop.locationType.passiveTick))/10sn")
+                    Text("\(FormatUtils.tl(hourlyPassiveIncome))/saat")
                         .font(.gdlCaption())
                         .foregroundColor(.gdlTextSecondary)
                 }
@@ -543,7 +545,7 @@ struct HomeView: View {
             // Başlık
             HStack(spacing: 6) {
                 Image(systemName: "trophy.fill").foregroundColor(.gdlGold).font(.subheadline)
-                Text("Sıralama").font(.gdlHeadline()).foregroundColor(.gdlTextPrimary)
+                Text("Benim Sıralamam").font(.gdlHeadline()).foregroundColor(.gdlTextPrimary)
             }
             .padding(.horizontal, 16)
             .padding(.top, 14)
@@ -582,7 +584,7 @@ struct HomeView: View {
                 }
             }
 
-            Text("Çevrimiçi sıralama yakında aktif olacak.")
+            Text("Mevcut ilerlemen bu değerlerle takip edilir.")
                 .font(.gdlCaption())
                 .foregroundColor(.gdlTextSecondary)
                 .padding(.horizontal, 16)

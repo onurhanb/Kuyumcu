@@ -420,7 +420,7 @@ class SupabaseSaveService {
 
     private static func applyShops(_ rows: [OwnedShopRow], to state: GameState) {
         guard !rows.isEmpty else { return }
-        let allShops = MockGameData.allShops
+        let allShops = GameSeedData.allShops
         let ownedNames = Set(rows.map { $0.shopName })
         // Çalışan sayısını Supabase'den gelen değerle güncelle
         let employeeMap = Dictionary(uniqueKeysWithValues: rows.map { ($0.shopName, $0.employeeCount) })
