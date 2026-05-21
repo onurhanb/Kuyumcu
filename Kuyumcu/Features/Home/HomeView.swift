@@ -13,6 +13,7 @@ private let infoTips: [(icon: String, text: String)] = [
 
 struct HomeView: View {
     @EnvironmentObject var gameState: GameState
+    @EnvironmentObject var audioManager: AudioManager
     @StateObject private var adManager = AdManager.shared
     @State private var showCounter      = false
     @State private var showIncomeAlert      = false
@@ -402,6 +403,7 @@ struct HomeView: View {
 
             HStack(spacing: 6) {
                 Button {
+                    audioManager.playEffect(.buttonTap)
                     gameState.enterShop(shop)
                     showCounter = true
                 } label: {
@@ -438,9 +440,11 @@ struct HomeView: View {
             }
             Spacer()
             Button {
+                audioManager.playEffect(.buttonTap)
                 adManager.showAd {
                     let amount = gameState.passiveIncomeAvailable
                     gameState.collectPassiveIncome()
+                    audioManager.playEffect(.passiveCollect)
                     lastCollectedAmount = amount
                     showIncomeAlert = true
                 }
@@ -837,5 +841,7 @@ extension Comparable {
 }
 
 #Preview {
-    HomeView().environmentObject(GameState())
+    HomeView()
+        .environmentObject(GameState())
+        .environmentObject(AudioManager.shared)
 }

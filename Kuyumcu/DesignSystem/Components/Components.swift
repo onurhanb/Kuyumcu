@@ -36,7 +36,10 @@ struct GoldButton: View {
     }
 
     var body: some View {
-        Button(action: action) {
+        Button {
+            AudioManager.shared.playEffect(.buttonTap)
+            action()
+        } label: {
             HStack(spacing: 6) {
                 if let icon { Image(systemName: icon) }
                 Text(title).fontWeight(.semibold)
@@ -474,6 +477,7 @@ struct CompactNumericKeypad: View {
     }
 
     private func tappedKey(_ key: String) {
+        AudioManager.shared.playEffect(.buttonTap)
         switch key {
         case "C":  input = ""
         case "⌫":

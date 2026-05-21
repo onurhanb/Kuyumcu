@@ -69,6 +69,12 @@ struct ProfileView: View {
                                            set: { audioManager.isCounterMusicEnabled = $0 }
                                        ))
                         Divider().background(Color.gdlDivider)
+                        musicToggleRow("Ses Efektleri", icon: "speaker.wave.2.fill",
+                                       binding: Binding(
+                                           get: { audioManager.isSoundEffectsEnabled },
+                                           set: { audioManager.isSoundEffectsEnabled = $0 }
+                                       ))
+                        Divider().background(Color.gdlDivider)
                         musicToggleRow("Günlük Kur Bildirimi", icon: "bell.badge.fill",
                                        binding: Binding(
                                            get: { pushService.dailyRateNotificationsEnabled },

@@ -123,7 +123,10 @@ struct CounterView: View {
     private var topBar: some View {
         VStack(spacing: 0) {
             HStack {
-                Button { dismiss() } label: {
+                Button {
+                    audioManager.playEffect(.buttonTap)
+                    dismiss()
+                } label: {
                     Image(systemName: "xmark.circle.fill")
                         .font(.title2)
                         .foregroundColor(.gdlTextSecondary)
@@ -545,10 +548,12 @@ struct CounterView: View {
 
     private func handleOffer(customer: Customer) {
         guard let offerValue = Double(offerInput), offerValue > 0 else { return }
+        audioManager.playEffect(.buttonTap)
 
         // Nakit yetersizlik kontrolü (müşteri satıyor → oyuncu ödüyor)
         if customer.request.direction == .customerSellsToPlayer {
             guard offerValue <= gameState.playerCash else {
+                audioManager.playEffect(.dealFail)
                 showInsufficientCash = true
                 return
             }
@@ -556,6 +561,7 @@ struct CounterView: View {
 
         // Envanter yetersizlik kontrolü (oyuncu satıyor)
         guard gameState.hasEnoughStock(for: customer.request.items, direction: customer.request.direction) else {
+            audioManager.playEffect(.dealFail)
             lastResult = .rejected
             showResult = true
             gameState.processRejectedTransaction()
@@ -596,21 +602,25 @@ struct CounterView: View {
             if gameState.processAcceptedTransaction(offer: offerValue, direction: customer.request.direction, items: customer.request.items) {
                 let base = gameState.calculateBaseValue(for: customer.request.items, direction: customer.request.direction)
                 lastProfit = customer.request.direction == .customerBuysFromPlayer ? offerValue - base : base - offerValue
+                audioManager.playEffect(.dealSuccess)
                 lastResult = .accepted
                 showResult = true
             } else {
                 lastProfit = 0
+                audioManager.playEffect(.dealFail)
                 lastResult = .rejected
                 showResult = true
             }
 
         case .bargained:
+            audioManager.playEffect(.bargain)
             lastResult = .bargained
             showResult = true
             gameState.processBargain()
             isBargainPhase = true
 
         case .rejected:
+            audioManager.playEffect(.dealFail)
             lastResult = .rejected
             showResult = true
             gameState.processRejectedTransaction()
@@ -621,12 +631,14 @@ struct CounterView: View {
     }
 
     private func handleReject() {
+        audioManager.playEffect(.dealFail)
         lastResult = .rejected
         showResult = true
         gameState.processRejectedTransaction()
     }
 
     private func handleTimerExpired() {
+        audioManager.playEffect(.dealFail)
         lastResult = .expired
         showResult = true
         gameState.processTimerExpired()

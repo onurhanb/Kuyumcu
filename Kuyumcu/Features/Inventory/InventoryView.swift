@@ -14,6 +14,7 @@ struct TradeSheetConfig: Identifiable {
 
 struct InventoryView: View {
     @EnvironmentObject var gameState: GameState
+    @EnvironmentObject var audioManager: AudioManager
     @State private var tradeConfig: TradeSheetConfig? = nil
 
     private var inv: Inventory { gameState.inventory }
@@ -183,9 +184,11 @@ struct InventoryView: View {
 
             HStack(spacing: 6) {
                 tradeButton("Sat", isBuy: false) {
+                    audioManager.playEffect(.buttonTap)
                     tradeConfig = TradeSheetConfig(category: category, name: label, unit: unit, isBuying: false)
                 }
                 tradeButton("Al", isBuy: true) {
+                    audioManager.playEffect(.buttonTap)
                     tradeConfig = TradeSheetConfig(category: category, name: label, unit: unit, isBuying: true)
                 }
             }
@@ -209,6 +212,7 @@ struct InventoryView: View {
 
 struct QuickTradeDialog: View {
     @EnvironmentObject var gameState: GameState
+    @EnvironmentObject var audioManager: AudioManager
     let config: TradeSheetConfig
     let onDismiss: () -> Void
 
@@ -267,7 +271,10 @@ struct QuickTradeDialog: View {
                         .foregroundColor(.gdlTextSecondary)
                 }
                 Spacer()
-                Button { onDismiss() } label: {
+                Button {
+                    audioManager.playEffect(.buttonTap)
+                    onDismiss()
+                } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundColor(.gdlTextSecondary)
@@ -319,7 +326,10 @@ struct QuickTradeDialog: View {
             // Hızlı miktar
             HStack(spacing: 6) {
                 ForEach([1, 5, 10, 50, 100, 1000], id: \.self) { n in
-                    Button { qtyText = "\(n)" } label: {
+                    Button {
+                        audioManager.playEffect(.buttonTap)
+                        qtyText = "\(n)"
+                    } label: {
                         Text("\(n)")
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundColor(.gdlTextPrimary)
@@ -347,6 +357,7 @@ struct QuickTradeDialog: View {
                 Spacer()
                 Button {
                     guard canTrade else { return }
+                    audioManager.playEffect(.purchase)
                     gameState.quickTrade(category: config.category, qty: qty, isBuying: config.isBuying)
                     onDismiss()
                 } label: {
@@ -380,5 +391,9 @@ struct QuickTradeDialog: View {
 }
 
 #Preview {
-    NavigationStack { InventoryView().environmentObject(GameState()) }
+    NavigationStack {
+        InventoryView()
+            .environmentObject(GameState())
+            .environmentObject(AudioManager.shared)
+    }
 }

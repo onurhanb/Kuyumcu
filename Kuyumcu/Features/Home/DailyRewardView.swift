@@ -62,6 +62,13 @@ struct DailyRewardView: View {
                     .padding(.horizontal, 16)
                 }
                 .padding(.bottom, 22)
+
+                Text("* Kısa bir reklam videosundan sonra ödül verilecektir.")
+                    .font(.system(size: 11))
+                    .foregroundColor(.gdlTextSecondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 18)
             }
             .background(Color.gdlCard)
             .cornerRadius(20)
@@ -94,39 +101,27 @@ struct DailyRewardView: View {
                 showAdNotReadyAlert = true
             }
         } label: {
-            VStack(spacing: 6) {
-                // Dış yuvarlak
-                ZStack {
-                    Circle()
-                        .fill(status.circleFill)
-                        .frame(width: 50, height: 50)
-                        .overlay(
-                            Circle()
-                                .strokeBorder(status.borderColor, lineWidth: status == .available ? 2.5 : 0)
-                        )
-
-                    // İç yuvarlak
-                    Circle()
-                        .fill(status.innerCircleFill)
-                        .frame(width: 30, height: 30)
-
-                    // İç icon
-                    if status == .claimed {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 13, weight: .bold))
-                            .foregroundColor(.white)
-                    }
-                }
-
-                Text("\(day). gün")
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundColor(status.textColor)
-
+            VStack(spacing: 7) {
                 Text(rewardLabel(reward))
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundColor(status == .available ? .gdlGold : status.textColor)
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundColor(status.amountColor)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+                    .frame(width: 72, height: 72)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(status.boxFill)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .strokeBorder(status.borderColor, lineWidth: status == .available ? 1.5 : 1)
+                    )
+
+                Text("\(day). Gün")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(status.dayTextColor)
             }
-            .frame(width: 54)
+            .frame(width: 72)
         }
         .disabled(status != .available)
     }
@@ -138,30 +133,34 @@ struct DailyRewardView: View {
         case available  // bu gün aktif, alınabilir
         case locked     // henüz gelmedi
 
-        var circleFill: Color {
+        var boxFill: Color {
             switch self {
-            case .claimed:   return Color.gray.opacity(0.20)
-            case .available: return Color.gdlGold.opacity(0.15)
+            case .claimed:   return Color.gdlGold.opacity(0.16)
+            case .available: return Color.gdlGold
             case .locked:    return Color.gdlCardSecondary
             }
         }
-        var innerCircleFill: Color {
-            switch self {
-            case .claimed:   return Color.gray.opacity(0.50)
-            case .available: return Color.gdlGold
-            case .locked:    return Color.gray.opacity(0.20)
-            }
-        }
+
         var borderColor: Color {
             switch self {
-            case .available: return Color.gdlGold
-            default: return Color.clear
+            case .claimed:   return Color.gdlGold.opacity(0.22)
+            case .available: return Color.gdlGold.opacity(0.95)
+            case .locked:    return Color.gdlDivider.opacity(0.7)
             }
         }
-        var textColor: Color {
+
+        var amountColor: Color {
             switch self {
-            case .claimed:   return .gray
-            case .available: return .gdlTextPrimary
+            case .claimed:   return Color.gdlGold.opacity(0.78)
+            case .available: return .black
+            case .locked:    return .gdlTextSecondary
+            }
+        }
+
+        var dayTextColor: Color {
+            switch self {
+            case .claimed:   return Color.gdlGold.opacity(0.55)
+            case .available: return Color.black.opacity(0.72)
             case .locked:    return .gdlTextSecondary
             }
         }

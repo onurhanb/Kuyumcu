@@ -32,7 +32,7 @@ class GameState: ObservableObject {
     @Published var currentCustomer: Customer?
     @Published var customerQueue: [Customer]
     @Published var isBargaining: Bool = false
-    private var arrivalTimer: AnyCancellable?
+    private var arrivalTask: Task<Void, Never>?
 
     // MARK: - Stats
     @Published var totalTransactions: Int
@@ -558,13 +558,11 @@ class GameState: ObservableObject {
     // MARK: - Private Helpers
 
     func startArrivalTimer() {
-        arrivalTimer?.cancel()
+        arrivalTask?.cancel()
         customerQueue = []
         currentCustomer = nil
         spawnCustomer()
-        arrivalTimer = Timer.publish(every: 10, on: .main, in: .common)
-            .autoconnect()
-            .sink { [weak self] _ in self?.spawnCustomer() }
+        scheduleNextCustomerArrival()
     }
 
     func spawnCustomer() {
@@ -578,6 +576,21 @@ class GameState: ObservableObject {
         customerQueue.append(newCustomer)
         if currentCustomer == nil {
             currentCustomer = customerQueue.first
+        }
+    }
+
+    private func scheduleNextCustomerArrival() {
+        arrivalTask?.cancel()
+        let delay = Double.random(in: 5...10)
+        arrivalTask = Task { [weak self] in
+            let nanoseconds = UInt64(delay * 1_000_000_000)
+            try? await Task.sleep(nanoseconds: nanoseconds)
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                guard let self else { return }
+                self.spawnCustomer()
+                self.scheduleNextCustomerArrival()
+            }
         }
     }
 

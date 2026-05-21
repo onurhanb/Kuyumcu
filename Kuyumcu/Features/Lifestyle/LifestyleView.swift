@@ -2,6 +2,7 @@ import SwiftUI
 
 struct LifestyleView: View {
     @EnvironmentObject var gameState: GameState
+    @EnvironmentObject var audioManager: AudioManager
     @State private var selectedCategory: LifestyleCategory = .daily
     @State private var purchasedItem: LifestyleItem? = nil
     @State private var showCongrats = false
@@ -46,6 +47,7 @@ struct LifestyleView: View {
                     LazyVStack(spacing: 10) {
                         ForEach(itemsForCategory) { item in
                             LifestyleItemCard(item: item) {
+                                audioManager.playEffect(.purchase)
                                 gameState.buyLifestyleItem(item)
                                 purchasedItem = item
                                 showCongrats  = true
@@ -78,6 +80,7 @@ struct LifestyleView: View {
             HStack(spacing: 8) {
                 ForEach(LifestyleCategory.allCases, id: \.self) { cat in
                     Button {
+                        audioManager.playEffect(.buttonTap)
                         selectedCategory = cat
                     } label: {
                         HStack(spacing: 5) {
@@ -215,4 +218,5 @@ struct LifestyleItemCard: View {
         LifestyleView()
     }
     .environmentObject(GameState())
+    .environmentObject(AudioManager.shared)
 }

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ShopsView: View {
     @EnvironmentObject var gameState: GameState
+    @EnvironmentObject var audioManager: AudioManager
     @State private var confirmBuy:  Shop? = nil
     @State private var confirmHire: Shop? = nil
 
@@ -20,6 +21,7 @@ struct ShopsView: View {
 
                             ForEach(gameState.ownedShops) { shop in
                                 ShopCard(shop: shop, playerCash: gameState.playerCash, onHire: {
+                                        audioManager.playEffect(.buttonTap)
                                         confirmHire = shop
                                     })
                                     .padding(.horizontal)
@@ -37,6 +39,7 @@ struct ShopsView: View {
 
                             ForEach(gameState.lockedShops) { shop in
                                 ShopCard(shop: shop, playerCash: gameState.playerCash, onBuy: {
+                                    audioManager.playEffect(.buttonTap)
                                     confirmBuy = shop
                                 })
                                 .padding(.horizontal)
@@ -61,6 +64,9 @@ struct ShopsView: View {
         ) {
             if let shop = confirmBuy {
                 Button("\(shop.name) — \(FormatUtils.tl(shop.purchasePrice))") {
+                    if gameState.playerCash >= shop.purchasePrice {
+                        audioManager.playEffect(.purchase)
+                    }
                     gameState.buyShop(shop)
                     confirmBuy = nil
                 }
@@ -80,6 +86,9 @@ struct ShopsView: View {
         ) {
             Button("Evet") {
                 if let shop = confirmHire {
+                    if gameState.playerCash >= shop.locationType.employeeHireCost {
+                        audioManager.playEffect(.purchase)
+                    }
                     gameState.hireEmployee(shopId: shop.id)
                 }
                 confirmHire = nil
@@ -100,5 +109,9 @@ struct ShopsView: View {
 }
 
 #Preview {
-    NavigationStack { ShopsView().environmentObject(GameState()) }
+    NavigationStack {
+        ShopsView()
+            .environmentObject(GameState())
+            .environmentObject(AudioManager.shared)
+    }
 }

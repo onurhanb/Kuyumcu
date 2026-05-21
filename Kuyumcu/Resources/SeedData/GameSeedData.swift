@@ -15,7 +15,7 @@ struct GameSeedData {
 
     static var initialInventory: Inventory {
         Inventory(tryCash: 1_000_000, usd: 10_000, eur: 10_000,
-                  gramGold: 200, quarterGold: 100, halfGold: 50, fullGold: 50)
+                  gramGold: 150, quarterGold: 100, halfGold: 50, fullGold: 10)
     }
 
     // MARK: - Lifestyle Items (50 adet, 5 kategori × 10)
