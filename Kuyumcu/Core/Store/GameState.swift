@@ -581,7 +581,7 @@ class GameState: ObservableObject {
 
     private func scheduleNextCustomerArrival() {
         arrivalTask?.cancel()
-        let delay = Double.random(in: 5...10)
+        let delay = Double.random(in: 4...8)
         arrivalTask = Task { [weak self] in
             let nanoseconds = UInt64(delay * 1_000_000_000)
             try? await Task.sleep(nanoseconds: nanoseconds)
