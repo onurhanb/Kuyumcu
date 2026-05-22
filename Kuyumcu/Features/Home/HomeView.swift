@@ -587,12 +587,6 @@ struct HomeView: View {
                     Divider().background(Color.gdlDivider).padding(.leading, 58)
                 }
             }
-
-            Text("Mevcut ilerlemen bu değerlerle takip edilir.")
-                .font(.gdlCaption())
-                .foregroundColor(.gdlTextSecondary)
-                .padding(.horizontal, 16)
-                .padding(.bottom, 10)
         }
         .background(Color.gdlCard)
         .cornerRadius(16)

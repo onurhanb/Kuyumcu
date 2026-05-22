@@ -102,11 +102,18 @@ struct DailyRewardView: View {
             }
         } label: {
             VStack(spacing: 7) {
-                Text(rewardLabel(reward))
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
-                    .foregroundColor(status.amountColor)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.75)
+                VStack(spacing: 5) {
+                    Image(systemName: "banknote.fill")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(status.amountColor)
+
+                    Text(rewardLabel(reward))
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .foregroundColor(status.amountColor)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .frame(width: 72, height: 72)
                     .background(
                         RoundedRectangle(cornerRadius: 12)
@@ -160,7 +167,7 @@ struct DailyRewardView: View {
         var dayTextColor: Color {
             switch self {
             case .claimed:   return Color.gdlGold.opacity(0.55)
-            case .available: return Color.black.opacity(0.72)
+            case .available: return .gdlGold
             case .locked:    return .gdlTextSecondary
             }
         }

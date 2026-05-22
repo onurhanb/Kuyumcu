@@ -547,21 +547,9 @@ enum CustomerLibrary {
             patienceSeconds: patience(for: pickedType),
             customerType: pickedType,
             dialogue: dialogue,
-            photoKey: availablePhotoKey(for: profile.photoKey),
+            photoKey: profile.photoKey,
             request: CustomerRequest(id: UUID(), direction: dir, items: items)
         )
-    }
-
-    private static func availablePhotoKey(for rawKey: String) -> String {
-        let prefix = "customer_"
-        guard rawKey.hasPrefix(prefix),
-              let number = Int(rawKey.dropFirst(prefix.count))
-        else {
-            return rawKey
-        }
-
-        let normalized = ((number - 1) % 20) + 1
-        return String(format: "customer_%03d", normalized)
     }
 
     // MARK: - Weighted Random
