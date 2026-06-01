@@ -1,8 +1,6 @@
-import AppTrackingTransparency
 import Combine
 import Foundation
 import GoogleMobileAds
-import UIKit
 import UserMessagingPlatform
 
 @MainActor
@@ -26,7 +24,6 @@ final class ConsentManager: ObservableObject {
             try await requestConsentInfoUpdate()
             try await ConsentForm.loadAndPresentIfRequired(from: nil)
             isPrivacyOptionsRequired = ConsentInformation.shared.privacyOptionsRequirementStatus == .required
-            await requestTrackingAuthorizationIfNeeded()
         } catch {
             print("[ConsentManager] Consent akışı tamamlanamadı: \(error.localizedDescription)")
             isPrivacyOptionsRequired = ConsentInformation.shared.privacyOptionsRequirementStatus == .required
@@ -58,14 +55,6 @@ final class ConsentManager: ObservableObject {
                 }
             }
         }
-    }
-
-    func requestTrackingAuthorizationIfNeeded() async {
-        guard #available(iOS 14.5, *) else { return }
-        guard ATTrackingManager.trackingAuthorizationStatus == .notDetermined else { return }
-        guard UIApplication.shared.applicationState == .active else { return }
-
-        _ = await ATTrackingManager.requestTrackingAuthorization()
     }
 
     private func startAdsIfAllowed() {

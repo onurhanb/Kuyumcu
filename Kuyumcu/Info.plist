@@ -4,8 +4,6 @@
 <dict>
 	<key>GADApplicationIdentifier</key>
 	<string>ca-app-pub-9919444685136366~2239382617</string>
-	<key>NSUserTrackingUsageDescription</key>
-	<string>Reklamları daha alakalı göstermek ve ödüllü reklam deneyimini iyileştirmek için izin istiyoruz.</string>
 	<key>SKAdNetworkItems</key>
 	<array>
 		<dict>

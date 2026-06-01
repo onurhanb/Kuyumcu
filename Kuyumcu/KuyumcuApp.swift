@@ -77,7 +77,7 @@ struct KuyumcuApp: App {
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active {
                     Task {
-                        await consentManager.requestTrackingAuthorizationIfNeeded()
+                        await SupabaseSaveService.loadRates(into: gameState)
                         await pushService.syncSavedTokenIfPossible()
                     }
                 }
@@ -99,7 +99,6 @@ struct KuyumcuApp: App {
         // Supabase'den veri yükle (yerel cache'in üzerine yazar)
         await SupabaseSaveService.load(into: gameState)
         await SupabaseSaveService.loadRates(into: gameState)
-        await gameState.fetchRatesIfNeeded()
         await SupabaseSaveService.loadEvents(into: gameState)
         await pushService.configureAndSync()
 

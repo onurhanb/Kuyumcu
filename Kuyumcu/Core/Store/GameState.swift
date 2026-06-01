@@ -140,41 +140,7 @@ class GameState: ObservableObject {
 
     @MainActor
     func fetchRatesIfNeeded() async {
-        guard RateFetchService.shared.shouldFetch(currentSourceDate: rates.first?.sourceDate) else { return }
-        do {
-            let fetched = try await RateFetchService.shared.fetchRates()
-            updateRates(from: fetched)
-        } catch {
-            // Ağ hatası → mevcut (kayıtlı/kayıtlı) fiyatlar geçerli kalır
-        }
-    }
-
-    @MainActor
-    func updateRates(from fetched: FetchedRates) {
-        let src  = fetched.sourceName
-        let date = fetched.dateString
-
-        func apply(_ type: String, buy: Double, sell: Double) {
-            guard let i = rates.firstIndex(where: { $0.type == type }) else { return }
-            rates[i].buyPrice   = buy
-            rates[i].sellPrice  = sell
-            rates[i].sourceName = src
-            rates[i].sourceDate = date
-        }
-
-        // Genelpara: alis = piyasanın alış (bizim satış), satis = piyasanın satış (bizim alış)
-        // Kuyumcu perspektifinden:
-        //   buyPrice  = müşteriden aldığımız fiyat → piyasanın alis fiyatı
-        //   sellPrice = müşteriye sattığımız fiyat → piyasanın satis fiyatı
-        apply("gramGold",    buy: fetched.gramGoldTRY,    sell: fetched.gramGoldSell)
-        apply("quarterGold", buy: fetched.quarterGoldTRY, sell: fetched.quarterGoldSell)
-        apply("halfGold",    buy: fetched.halfGoldTRY,    sell: fetched.halfGoldSell)
-        apply("fullGold",    buy: fetched.fullGoldTRY,    sell: fetched.fullGoldSell)
-        apply("USD",         buy: fetched.usdTRY,         sell: fetched.usdSell)
-        apply("EUR",         buy: fetched.eurTRY,         sell: fetched.eurSell)
-
-        GameSaveService.save(self)
-        Task { await SupabaseSaveService.save(self) }
+        await SupabaseSaveService.loadRates(into: self)
     }
 
     // MARK: - Computed Properties
