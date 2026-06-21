@@ -123,6 +123,15 @@ struct DailyRewardView: View {
                         RoundedRectangle(cornerRadius: 12)
                             .strokeBorder(status.borderColor, lineWidth: status == .available ? 1.5 : 1)
                     )
+                    .overlay(alignment: .topTrailing) {
+                        if status == .claimed {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(.gdlGold)
+                                .background(Color.gdlCard.clipShape(Circle()))
+                                .padding(6)
+                        }
+                    }
 
                 Text("\(day). Gün")
                     .font(.system(size: 10, weight: .medium))

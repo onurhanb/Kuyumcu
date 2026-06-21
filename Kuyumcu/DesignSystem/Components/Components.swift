@@ -55,6 +55,94 @@ struct GoldButton: View {
     }
 }
 
+// MARK: - CompactActionButton
+
+struct CompactActionButton: View {
+    enum Style {
+        case gold
+        case positive
+        case negative
+        case muted
+    }
+
+    let title: String
+    var icon: String? = nil
+    var iconTrailing: Bool = false
+    var style: Style = .gold
+    var isDisabled: Bool = false
+    var minWidth: CGFloat? = nil
+    let action: () -> Void
+
+    private var backgroundColor: Color {
+        if isDisabled { return .gdlCardSecondary }
+        switch style {
+        case .gold: return .gdlGold
+        case .positive: return .gdlPositive
+        case .negative: return .gdlNegative
+        case .muted: return .gdlCardSecondary
+        }
+    }
+
+    private var foregroundColor: Color {
+        if isDisabled { return .gdlTextSecondary }
+        switch style {
+        case .gold: return .black
+        case .positive, .negative, .muted: return .gdlTextPrimary
+        }
+    }
+
+    var body: some View {
+        Button {
+            action()
+        } label: {
+            HStack(spacing: 5) {
+                if let icon, !iconTrailing {
+                    Image(systemName: icon)
+                        .font(.system(size: 11, weight: .semibold))
+                }
+                Text(title)
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                if let icon, iconTrailing {
+                    Image(systemName: icon)
+                        .font(.system(size: 11, weight: .semibold))
+                }
+            }
+            .foregroundColor(foregroundColor)
+            .frame(minWidth: minWidth)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(backgroundColor)
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+        }
+        .buttonStyle(.plain)
+        .disabled(isDisabled)
+    }
+}
+
+// MARK: - StatusBadge
+
+struct StatusBadge: View {
+    let title: String
+    var icon: String? = nil
+    var color: Color = .gdlPositive
+
+    var body: some View {
+        HStack(spacing: 5) {
+            if let icon {
+                Image(systemName: icon)
+                    .font(.system(size: 11, weight: .semibold))
+            }
+            Text(title)
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+        }
+        .foregroundColor(color)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
+        .background(color.opacity(0.12))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+}
+
 // MARK: - StatPill
 
 struct StatPill: View {
@@ -95,6 +183,29 @@ struct SectionCard<Content: View>: View {
         }
         .padding(14)
         .gdlCard()
+    }
+}
+
+// MARK: - Section Header Row
+
+struct SectionHeaderRow: View {
+    let title: String
+    var detail: String? = nil
+    var color: Color = .gdlTextSecondary
+
+    var body: some View {
+        HStack {
+            Text(title)
+                .font(.gdlHeadline())
+                .foregroundColor(.gdlTextPrimary)
+            Spacer()
+            if let detail {
+                Text(detail)
+                    .font(.gdlCaption())
+                    .foregroundColor(color)
+            }
+        }
+        .padding(.horizontal)
     }
 }
 
@@ -217,23 +328,9 @@ struct ShopCard: View {
 
                 // Satın Al / Mevcut butonu
                 if shop.isOwned {
-                    Label("Mevcut", systemImage: "checkmark.circle.fill")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(Color(red: 0.22, green: 0.60, blue: 0.35))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 7)
-                        .background(Color(red: 0.22, green: 0.60, blue: 0.35).opacity(0.12))
-                        .cornerRadius(10)
+                    StatusBadge(title: "Mevcut", icon: "checkmark.circle.fill", color: .gdlPositive)
                 } else if let onBuy {
-                    Button(action: onBuy) {
-                        Text("Satın Al")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundColor(canAfford ? .black : .gdlTextSecondary)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 8)
-                            .background(canAfford ? Color.gdlGold : Color.gdlCardSecondary)
-                            .cornerRadius(10)
-                    }
+                    CompactActionButton(title: "Satın Al", style: .gold, isDisabled: !canAfford, action: onBuy)
                     .disabled(!canAfford)
                 }
             }

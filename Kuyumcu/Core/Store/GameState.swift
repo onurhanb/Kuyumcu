@@ -1,6 +1,13 @@
 import Foundation
 import Combine
 
+enum CloudSyncStatus {
+    case idle
+    case syncing
+    case synced
+    case failed
+}
+
 class GameState: ObservableObject {
 
     // MARK: - Finances
@@ -16,7 +23,7 @@ class GameState: ObservableObject {
     @Published var activeShop: Shop?
 
     // MARK: - Progression
-    @Published var customerSatisfaction: Int
+    @Published var entryRightsRemaining: Int
     @Published var totalProfit: Double
     @Published var dailyProfit: Double
     @Published var weeklyProfit: Double
@@ -43,9 +50,6 @@ class GameState: ObservableObject {
     @Published var lifestyleItems: [LifestyleItem]
     @Published var lifestyleScore: Int
 
-    // MARK: - Reputation
-    @Published var trustScore: Double
-
     // MARK: - Identity
     @Published var shopName: String = "Misafir"
 
@@ -55,6 +59,10 @@ class GameState: ObservableObject {
     // MARK: - Daily Reward
     @Published var dailyRewardDay: Int       = 0    // son alınan gün (0 = hiç)
     @Published var dailyRewardClaimedAt: Date? = nil // son alım tarihi
+    @Published var entryRightsRefreshedAt: Date? = nil
+    @Published var cloudSyncStatus: CloudSyncStatus = .idle
+    @Published var cloudSyncErrorMessage: String?
+    @Published var cloudSyncUpdatedAt: Date?
 
     static let dailyRewardAmounts: [Int: Double] = [
         1: 5_000, 2: 10_000, 3: 15_000, 4: 20_000,
@@ -62,7 +70,7 @@ class GameState: ObservableObject {
     ]
 
     /// Oyun günü başlangıcı: İstanbul 08:00 (UTC+3)
-    private static func istanbulGameDayStart(of date: Date) -> Date {
+    static func istanbulGameDayStart(of date: Date) -> Date {
         var cal = Calendar(identifier: .gregorian)
         cal.timeZone = TimeZone(identifier: "Europe/Istanbul")!
         var comps = cal.dateComponents([.year, .month, .day], from: date)
@@ -70,6 +78,10 @@ class GameState: ObservableObject {
         let boundary = cal.date(from: comps)!
         // 08:00'dan önce isek bir önceki günün 08:00'ına aitiz
         return date < boundary ? cal.date(byAdding: .day, value: -1, to: boundary)! : boundary
+    }
+
+    static func isSameGameDay(_ lhs: Date, _ rhs: Date) -> Bool {
+        istanbulGameDayStart(of: lhs) == istanbulGameDayStart(of: rhs)
     }
 
     private var daysSinceLastClaim: Int {
@@ -94,11 +106,50 @@ class GameState: ObservableObject {
         guard !dailyRewardClaimedToday else { return }
         let day    = dailyRewardAvailableDay
         let reward = Self.dailyRewardAmounts[day] ?? 0
-        playerCash           += reward
-        dailyProfit          += reward
-        dailyRewardDay        = day
-        dailyRewardClaimedAt  = Date()
+        receiveCash(reward)
+        dailyProfit += reward
+        totalProfit += reward
+        dailyRewardDay = day
+        dailyRewardClaimedAt = Date()
         GameSaveService.save(self)
+        Task { await SupabaseSaveService.save(self) }
+    }
+
+    func syncEntryRightsIfNeeded(at date: Date = Date()) {
+        if let lastRefreshedAt = entryRightsRefreshedAt,
+           Self.isSameGameDay(lastRefreshedAt, date) {
+            entryRightsRemaining = min(max(entryRightsRemaining, 0), 3)
+            return
+        }
+
+        entryRightsRemaining = 3
+        entryRightsRefreshedAt = date
+    }
+
+    var canEnterShop: Bool {
+        syncEntryRightsIfNeeded()
+        return entryRightsRemaining > 0
+    }
+
+    @discardableResult
+    func consumeEntryRightAndEnterShop(_ shop: Shop, at date: Date = Date()) -> Bool {
+        syncEntryRightsIfNeeded(at: date)
+        guard entryRightsRemaining > 0 else { return false }
+
+        entryRightsRemaining -= 1
+        entryRightsRefreshedAt = date
+        enterShop(shop)
+        return true
+    }
+
+    func refreshEntryRightsFromAd(at date: Date = Date()) {
+        entryRightsRemaining = 3
+        entryRightsRefreshedAt = date
+        GameSaveService.save(self)
+        Task { await SupabaseSaveService.save(self) }
+    }
+
+    func retryCloudSync() {
         Task { await SupabaseSaveService.save(self) }
     }
 
@@ -113,7 +164,7 @@ class GameState: ObservableObject {
         self.lockedShops                 = shops.filter { !$0.isOwned }
         let firstShop                    = shops.first(where: { $0.isOwned })
         self.activeShop                  = firstShop
-        self.customerSatisfaction        = 50
+        self.entryRightsRemaining        = 3
         self.totalProfit                 = 0
         self.dailyProfit                 = 0
         self.weeklyProfit                = 0
@@ -125,7 +176,6 @@ class GameState: ObservableObject {
         self.rejectedDeals               = 0
         self.lifestyleItems              = GameSeedData.allLifestyleItems
         self.lifestyleScore              = 0
-        self.trustScore                  = 50
         self.yesterdayCash               = 0
         self.customerQueue               = []
         self.currentCustomer             = nil
@@ -182,6 +232,16 @@ class GameState: ObservableObject {
         activeEvents.filter { $0.isActive }.reduce(1.0) { $0 * $1.trafficModifier }
     }
 
+    var eventGenerosityMultiplier: Double {
+        let multiplier = activeEvents.filter { $0.isActive }.reduce(1.0) { $0 * $1.generosityModifier }
+        return min(max(multiplier, 0.7), 1.6)
+    }
+
+    var eventVIPMultiplier: Double {
+        let multiplier = activeEvents.filter { $0.isActive }.reduce(1.0) { $0 * $1.vipModifier }
+        return min(max(multiplier, 0.5), 2.5)
+    }
+
     func employeeMultiplier(for shop: Shop) -> Double {
         1.0 + Double(shop.employeeCount) * 0.05
     }
@@ -190,16 +250,31 @@ class GameState: ObservableObject {
         rates.first(where: { $0.type == type })
     }
 
+    var activeShopKey: String? {
+        activeShop?.key
+    }
+
+    @discardableResult
+    private func spendCash(_ amount: Double) -> Bool {
+        guard amount >= 0, playerCash >= amount else { return false }
+        playerCash -= amount
+        return true
+    }
+
+    private func receiveCash(_ amount: Double) {
+        guard amount >= 0 else { return }
+        playerCash += amount
+    }
+
     // MARK: - Actions
 
     func collectPassiveIncome() {
         let now = Date()
         let income = passiveIncomeAvailable(at: now)
         guard income > 0 else { return }
-        playerCash        += income
-        inventory.tryCash += income
-        dailyProfit       += income
-        totalProfit       += income
+        receiveCash(income)
+        dailyProfit += income
+        totalProfit += income
         passiveIncomeBalance = 0
         passiveIncomeUpdatedAt = now
         GameSaveService.save(self)
@@ -207,14 +282,25 @@ class GameState: ObservableObject {
     }
 
     func hireEmployee(shopId: UUID) {
-        guard let idx = ownedShops.firstIndex(where: { $0.id == shopId }),
+        guard let idx = ownedShops.firstIndex(where: { $0.id == shopId }) else { return }
+        hireEmployee(at: idx)
+    }
+
+    func hireEmployee(shopName: String) {
+        guard let idx = ownedShops.firstIndex(where: { $0.name == shopName }) else { return }
+        hireEmployee(at: idx)
+    }
+
+    private func hireEmployee(at idx: Int) {
+        guard ownedShops.indices.contains(idx),
               ownedShops[idx].isOwned,
               ownedShops[idx].employeeCount < ownedShops[idx].employeeCapacity else { return }
+
+        let shopId = ownedShops[idx].id
         let cost = ownedShops[idx].locationType.employeeHireCost
         guard playerCash >= cost else { return }
         settlePassiveIncome()
-        playerCash -= cost
-        inventory.tryCash -= cost
+        guard spendCash(cost) else { return }
         ownedShops[idx].employeeCount += 1
         if activeShop?.id == shopId {
             activeShop = ownedShops[idx]
@@ -224,7 +310,7 @@ class GameState: ObservableObject {
     }
 
     func advanceDay() {
-        yesterdayCash = inventory.tryCash
+        yesterdayCash = playerCash
         currentDay   += 1
         dailyProfit   = 0
         isBargaining                 = false
@@ -254,13 +340,10 @@ class GameState: ObservableObject {
         let total = price * qty
 
         if isBuying {
-            guard playerCash >= total else { return }
-            playerCash        -= total
-            inventory.tryCash -= total
+            guard spendCash(total) else { return }
         } else {
             guard hasEnoughInventory(category: category, quantity: qty) else { return }
-            playerCash        += total
-            inventory.tryCash += total
+            receiveCash(total)
         }
 
         switch category {
@@ -305,7 +388,7 @@ class GameState: ObservableObject {
         lockedShops                 = shops.filter { !$0.isOwned }
         activeShop                  = first
         shopName = keepsShopName ? retainedShopName : "Misafir"
-        customerSatisfaction        = 50
+        entryRightsRemaining        = 3
         totalProfit                 = 0
         dailyProfit                 = 0
         weeklyProfit                = 0
@@ -318,10 +401,10 @@ class GameState: ObservableObject {
         rejectedDeals               = 0
         lifestyleItems              = GameSeedData.allLifestyleItems
         lifestyleScore              = 0
-        trustScore                  = 50
         yesterdayCash               = 0
         dailyRewardDay              = 0
         dailyRewardClaimedAt        = nil
+        entryRightsRefreshedAt      = nil
         isBargaining                = false
         customerQueue               = []
         currentCustomer             = nil
@@ -336,10 +419,6 @@ class GameState: ObservableObject {
         }
     }
 
-    func adjustSatisfaction(_ delta: Int) {
-        customerSatisfaction = max(0, min(100, customerSatisfaction + delta))
-    }
-
     // MARK: - Transaction Processing
 
     @discardableResult
@@ -352,15 +431,12 @@ class GameState: ObservableObject {
         case .customerBuysFromPlayer:
             guard hasEnoughStock(for: items, direction: direction) else { return false }
             profit = offer - baseValue
-            playerCash        += offer
-            inventory.tryCash += offer
+            receiveCash(offer)
             deductInventory(items: items)
 
         case .customerSellsToPlayer:
-            guard playerCash >= offer else { return false }
+            guard spendCash(offer) else { return false }
             profit = baseValue - offer
-            playerCash        -= offer
-            inventory.tryCash -= offer
             addInventory(items: items)
         }
 
@@ -371,8 +447,6 @@ class GameState: ObservableObject {
         totalTransactions += 1
         acceptedDeals   += 1
         isBargaining     = false
-        adjustSatisfaction(3)
-        trustScore = min(100, trustScore + 0.5)
         advanceCustomer()
         GameSaveService.save(self)
         Task { await SupabaseSaveService.save(self) }
@@ -380,8 +454,6 @@ class GameState: ObservableObject {
     }
 
     func processRejectedTransaction() {
-        adjustSatisfaction(-1)
-        trustScore = max(0, trustScore - 1.0)
         totalTransactions += 1
         rejectedDeals     += 1
         isBargaining       = false
@@ -392,12 +464,10 @@ class GameState: ObservableObject {
 
     func processBargain() {
         isBargaining = true
-        adjustSatisfaction(-1)
         // No save needed – no permanent state change yet
     }
 
     func processTimerExpired() {
-        adjustSatisfaction(-1)
         isBargaining = false
         advanceCustomer()
         GameSaveService.save(self)
@@ -408,6 +478,7 @@ class GameState: ObservableObject {
     func enterShop(_ shop: Shop) {
         activeShop = shop
         startArrivalTimer()
+        GameSaveService.save(self)
         Task { await SupabaseSaveService.save(self) }
     }
 
@@ -421,8 +492,7 @@ class GameState: ObservableObject {
     func buyShop(_ shop: Shop) {
         guard playerCash >= shop.purchasePrice else { return }
         settlePassiveIncome()
-        playerCash        -= shop.purchasePrice
-        inventory.tryCash -= shop.purchasePrice
+        guard spendCash(shop.purchasePrice) else { return }
         var purchased      = shop
         purchased.isOwned  = true
         lockedShops.removeAll { $0.id == shop.id }
@@ -432,9 +502,7 @@ class GameState: ObservableObject {
     }
 
     func buyLifestyleItem(_ item: LifestyleItem) {
-        guard !item.isOwned, playerCash >= item.price else { return }
-        playerCash        -= item.price
-        inventory.tryCash -= item.price
+        guard !item.isOwned, spendCash(item.price) else { return }
         if let idx = lifestyleItems.firstIndex(where: { $0.id == item.id }) {
             lifestyleItems[idx].isOwned = true
         }
@@ -498,7 +566,7 @@ class GameState: ObservableObject {
 
         let margin    = offer / baseValue
         let tolerance = customer.customerType.marginTolerance
-        let genBonus  = customer.generosity * 0.08
+        let genBonus  = customer.generosity * 0.08 * eventGenerosityMultiplier
 
         switch direction {
         case .customerBuysFromPlayer:
@@ -534,11 +602,13 @@ class GameState: ObservableObject {
     func spawnCustomer() {
         let cap = activeShop?.locationType.queueCapacity ?? 5
         if customerQueue.count >= cap {
-            trustScore = max(0, trustScore - 5)
             return
         }
         let locationType = activeShop?.locationType ?? .neighborhood
-        let newCustomer = CustomerLibrary.generateCustomer(for: locationType)
+        let newCustomer = CustomerLibrary.generateCustomer(
+            for: locationType,
+            vipModifier: eventVIPMultiplier
+        )
         customerQueue.append(newCustomer)
         if currentCustomer == nil {
             currentCustomer = customerQueue.first

@@ -31,10 +31,8 @@ struct ProfileView: View {
 
     var body: some View {
         ZStack {
-            Color.gdlBackground.ignoresSafeArea()
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 14) {
-
                     // 1. Profil kartı
                     profileCard
                         .padding(.horizontal)
@@ -95,6 +93,9 @@ struct ProfileView: View {
                         settingRow("Uygulama Versiyonu", value: appVersionText)
                     }
                     .padding(.horizontal)
+
+                    syncCard
+                        .padding(.horizontal)
 
                     // Hesaptan Çıkış butonu
                     Button {
@@ -201,9 +202,10 @@ struct ProfileView: View {
 
                     Spacer(minLength: 80)
                 }
-                .padding(.top, 8)
+                .padding(.top, 12)
             }
         }
+        .gdlScreenBackground()
         .navigationTitle("Profil")
         .navigationBarTitleDisplayMode(.large)
         .alert("Hesaptan Çıkış", isPresented: $showSignOutAlert) {
@@ -271,6 +273,89 @@ struct ProfileView: View {
                     isDeletingAccount = false
                 }
             }
+        }
+    }
+
+    private var syncCard: some View {
+        SectionCard(title: "Bulut Senkron", icon: "arrow.triangle.2.circlepath") {
+            HStack(spacing: 10) {
+                syncStatusIcon
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(syncStatusTitle)
+                        .font(.gdlBody())
+                        .foregroundColor(.gdlTextPrimary)
+                    if let detail = syncStatusDetail {
+                        Text(detail)
+                            .font(.gdlCaption())
+                            .foregroundColor(.gdlTextSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                Spacer()
+                if gameState.cloudSyncStatus == .failed {
+                    CompactActionButton(title: "Tekrar Dene", style: .gold) {
+                        gameState.retryCloudSync()
+                    }
+                } else if gameState.cloudSyncStatus == .syncing {
+                    ProgressView()
+                        .tint(.gdlGold)
+                }
+            }
+        }
+    }
+
+    private var syncStatusTitle: String {
+        switch gameState.cloudSyncStatus {
+        case .idle:
+            return "Henüz senkron yapılmadı"
+        case .syncing:
+            return "Bulut senkron devam ediyor"
+        case .synced:
+            return "Bulut senkron tamamlandı"
+        case .failed:
+            return "Bulut senkron başarısız"
+        }
+    }
+
+    private var syncStatusDetail: String? {
+        switch gameState.cloudSyncStatus {
+        case .idle:
+            return "Kalıcı bir işlem yaptığında veriler otomatik olarak buluta yazılır."
+        case .syncing:
+            return "Son değişikliklerin buluta kaydediliyor."
+        case .synced:
+            if let date = gameState.cloudSyncUpdatedAt {
+                let formatter = DateFormatter()
+                formatter.locale = Locale(identifier: "tr_TR")
+                formatter.timeZone = TimeZone(identifier: "Europe/Istanbul")
+                formatter.dateFormat = "d MMMM yyyy • HH:mm"
+                return "Son başarılı senkron: \(formatter.string(from: date))"
+            }
+            return "Son değişikliklerin buluta kaydedildi."
+        case .failed:
+            return gameState.cloudSyncErrorMessage ?? "Bulut kaydı tamamlanamadı. Tekrar deneyebilirsin."
+        }
+    }
+
+    @ViewBuilder
+    private var syncStatusIcon: some View {
+        switch gameState.cloudSyncStatus {
+        case .idle:
+            Image(systemName: "icloud")
+                .foregroundColor(.gdlTextSecondary)
+                .frame(width: 22)
+        case .syncing:
+            Image(systemName: "icloud.and.arrow.up")
+                .foregroundColor(.gdlGold)
+                .frame(width: 22)
+        case .synced:
+            Image(systemName: "checkmark.icloud.fill")
+                .foregroundColor(.gdlPositive)
+                .frame(width: 22)
+        case .failed:
+            Image(systemName: "exclamationmark.icloud.fill")
+                .foregroundColor(.gdlNegative)
+                .frame(width: 22)
         }
     }
 
@@ -491,7 +576,6 @@ struct ProfileView: View {
                 let ownedInCat = allInCat.filter { $0.isOwned }
 
                 VStack(alignment: .leading, spacing: 8) {
-                    // Kategori başlığı
                     HStack(spacing: 6) {
                         Image(systemName: cat.icon)
                             .font(.system(size: 12))
@@ -511,17 +595,14 @@ struct ProfileView: View {
                             .foregroundColor(.gdlTextSecondary)
                             .padding(.vertical, 4)
                     } else {
-                        // 6 sütunlu grid
-                        LazyVGrid(
-                            columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 6),
-                            spacing: 8
-                        ) {
+                        LazyVGrid(columns: lifestyleGridColumns, spacing: 8) {
                             ForEach(ownedInCat) { item in
                                 lifestyleThumb(item: item)
                             }
                         }
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
 
                 if cat != LifestyleCategory.allCases.last {
                     Divider().background(Color.gdlDivider).padding(.vertical, 2)
@@ -536,6 +617,7 @@ struct ProfileView: View {
 
         return VStack(spacing: 3) {
             ZStack {
+                let thumbRadius = GDLSpacing.sm
                 RoundedRectangle(cornerRadius: 8)
                     .fill(Color.gdlCardSecondary)
                     .aspectRatio(1, contentMode: .fit)
@@ -543,9 +625,10 @@ struct ProfileView: View {
                 if hasImage {
                     Image(imgKey)
                         .resizable()
-                        .scaledToFill()
+                        .scaledToFit()
+                        .padding(6)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .clipShape(RoundedRectangle(cornerRadius: thumbRadius))
                 } else {
                     Image(systemName: item.icon)
                         .font(.system(size: 18))
@@ -556,9 +639,13 @@ struct ProfileView: View {
             Text(item.name)
                 .font(.system(size: 8))
                 .foregroundColor(.gdlTextSecondary)
-                .lineLimit(2)
+                .lineLimit(1)
                 .multilineTextAlignment(.center)
         }
+    }
+
+    private var lifestyleGridColumns: [GridItem] {
+        [GridItem(.adaptive(minimum: 56, maximum: 72), spacing: 8)]
     }
 
     /// "Espresso Makinesi" → "lifestyle_espresso_makinesi"
@@ -586,8 +673,6 @@ struct ProfileView: View {
             statRow("Toplam İşlem",        "\(gameState.totalTransactions)")
             statRow("Kabul Edilen",        "\(gameState.acceptedDeals)")
             statRow("Reddedilen",          "\(gameState.rejectedDeals)")
-            statRow("Müşteri Memnuniyeti", "\(gameState.customerSatisfaction)/100")
-            statRow("Güven Puanı",         String(format: "%.1f/100", gameState.trustScore))
             if gameState.totalTransactions > 0 {
                 let rate = Int(Double(gameState.acceptedDeals) / Double(gameState.totalTransactions) * 100)
                 statRow("Kabul Oranı", "%\(rate)")
@@ -671,9 +756,7 @@ struct ProfileView: View {
     }
 
     private var appVersionText: String {
-        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
-        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
-        return "\(version) B\(build)"
+        AppVersion.current.displayText
     }
 }
 

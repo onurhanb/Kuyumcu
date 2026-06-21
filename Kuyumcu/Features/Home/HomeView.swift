@@ -3,7 +3,7 @@ import Combine
 
 // MARK: - Info Tips (etkinlik yokken gösterilir)
 private let infoTips: [(icon: String, text: String)] = [
-    ("scalemass.fill",        "Müşterileri memnun tutmak için adil fiyat teklifleri yapın."),
+    ("scalemass.fill",        "Teklif verirken piyasa fiyatına yakın kalmak kârlılığı korur."),
     ("clock.badge.checkmark", "Pasif geliri her gün toplayarak nakit akışınızı artırın."),
     ("star.fill",             "Daha prestijli lokasyonlar daha fazla VIP müşteri getirir."),
     ("chart.line.uptrend.xyaxis", "Altın fiyatları döviz kurlarından doğrudan etkilenir."),
@@ -22,6 +22,13 @@ struct HomeView: View {
     @State private var tipIndex         = Int.random(in: 0..<infoTips.count)
     @State private var rankingTab       = 0
     @State private var passiveIncomeNow = Date()
+    @State private var leaderboardEntries: [LeaderboardEntry] = []
+    @State private var leaderboardLoading = false
+    @State private var leaderboardUpdatedAt: Date?
+    @State private var selectedShopForEntry: Shop?
+    @State private var showEntryConfirmDialog = false
+    @State private var showEntryRightsExhaustedDialog = false
+    @State private var showAdNotReadyAlert = false
 
     // Kur ticker metni
     private var ratesTickerText: String {
@@ -88,40 +95,35 @@ struct HomeView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                Color.gdlBackground.ignoresSafeArea()
+        ZStack {
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: GDLSpacing.md) {
+                    // MARK: 1. Etkinlik / Bilgi Kutucuğu (en üstte, kompakt)
+                    eventOrTipBanner
+                        .padding(.horizontal)
 
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: 14) {
+                    // MARK: 2. Profil Kartı (isim + tarih + stats)
+                    profileCard
+                        .padding(.horizontal)
 
-                        // MARK: 1. Etkinlik / Bilgi Kutucuğu (en üstte, kompakt)
-                        eventOrTipBanner
-                            .padding(.horizontal)
+                    // MARK: 3. Dükkanlarım + Pasif Gelir Topla
+                    shopsCard
+                        .padding(.horizontal)
 
-                        // MARK: 2. Profil Kartı (isim + tarih + stats)
-                        profileCard
-                            .padding(.horizontal)
+                    // MARK: 4. Güncel Kurlar (3×2 grid, tek fiyat)
+                    ratesCard
+                        .padding(.horizontal)
 
-                        // MARK: 3. Dükkanlarım + Pasif Gelir Topla
-                        shopsCard
-                            .padding(.horizontal)
+                    // MARK: 5. Sıralama
+                    rankingCard
+                        .padding(.horizontal)
 
-                        // MARK: 4. Güncel Kurlar (3×2 grid, tek fiyat)
-                        ratesCard
-                            .padding(.horizontal)
-
-                        // MARK: 5. Sıralama
-                        rankingCard
-                            .padding(.horizontal)
-
-                        Spacer(minLength: 80)
-                    }
-                    .padding(.top, 12)
+                    Spacer(minLength: 80)
                 }
+                .padding(.top, GDLSpacing.md)
             }
-            .toolbar(.hidden, for: .navigationBar)
         }
+        .gdlScreenBackground()
         .fullScreenCover(isPresented: $showCounter) {
             CounterView().environmentObject(gameState)
         }
@@ -142,8 +144,43 @@ struct HomeView: View {
         } message: {
             Text("\(FormatUtils.tl(lastCollectedAmount)) hesabına eklendi.")
         }
+        .alert("Dükkana Gir", isPresented: $showEntryConfirmDialog, presenting: selectedShopForEntry) { shop in
+            Button("İptal", role: .cancel) {
+                selectedShopForEntry = nil
+            }
+            Button("Giriş") {
+                if gameState.consumeEntryRightAndEnterShop(shop) {
+                    showCounter = true
+                }
+                selectedShopForEntry = nil
+            }
+        } message: { _ in
+            Text("Kalan giriş hakkın \(gameState.entryRightsRemaining)/3. Bu dükkana girersen 1 hak harcanır.")
+        }
+        .alert("Giriş Hakkın Bitti", isPresented: $showEntryRightsExhaustedDialog) {
+            Button("İptal", role: .cancel) {}
+            Button("Yenile") {
+                refreshEntryRightsFromAd()
+            }
+        } message: {
+            Text("Giriş hakkın bitti. Reklam izleyerek 3/3 yenileyebilirsin.")
+        }
+        .alert("Reklam Hazır Değil", isPresented: $showAdNotReadyAlert) {
+            Button("Tamam", role: .cancel) {
+                adManager.loadAd()
+            }
+        } message: {
+            Text("Reklam yükleniyor, biraz sonra tekrar dene.")
+        }
         .onAppear {
             tipIndex = Int.random(in: 0..<infoTips.count)
+            gameState.syncEntryRightsIfNeeded()
+            if leaderboardEntries.isEmpty {
+                Task { await refreshLeaderboard() }
+            }
+        }
+        .onChange(of: gameState.rates.first?.sourceDate) { _, _ in
+            Task { await refreshLeaderboard() }
         }
     }
 
@@ -151,6 +188,7 @@ struct HomeView: View {
 
     private var profileCard: some View {
         let hasImage = UIImage(named: "home_stats_bg") != nil
+        let showEntryRefreshPill = gameState.entryRightsRemaining == 0
         return VStack(spacing: 0) {
             ZStack {
                 // Arka plan: resim varsa resim, yoksa renk
@@ -176,7 +214,7 @@ struct HomeView: View {
                 // Üst satır: sol tarih, sağ günlük ödül
                 VStack {
                     HStack {
-                        HStack(spacing: 4) {
+                        HStack(spacing: GDLSpacing.xxs) {
                             Image(systemName: "calendar")
                                 .font(.system(size: 11, weight: .medium))
                                 .foregroundColor(.white)
@@ -184,27 +222,27 @@ struct HomeView: View {
                                 .font(.system(size: 13, weight: .medium, design: .rounded))
                                 .foregroundColor(.white)
                         }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
+                        .padding(.horizontal, GDLSpacing.sm)
+                        .padding(.vertical, GDLSpacing.xxs)
                         .background(Color.black.opacity(0.45))
-                        .cornerRadius(7)
+                        .cornerRadius(GDLRadius.sm)
                         Spacer()
                         Button { showDailyReward = true } label: {
-                            HStack(spacing: 4) {
+                            HStack(spacing: GDLSpacing.xxs) {
                                 Image(systemName: "gift.fill")
                                     .font(.system(size: 11))
                                 Text("Günlük Ödül")
                                     .font(.system(size: 11, weight: .semibold))
                             }
                             .foregroundColor(.black)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 6)
+                            .padding(.horizontal, GDLSpacing.sm)
+                            .padding(.vertical, GDLSpacing.xs)
                             .background(Color.gdlGold)
-                            .cornerRadius(7)
+                            .cornerRadius(GDLRadius.sm)
                         }
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 14)
+                    .padding(.horizontal, GDLSpacing.lg)
+                    .padding(.top, GDLSpacing.md)
                     Spacer()
                 }
 
@@ -216,8 +254,8 @@ struct HomeView: View {
                         .font(.system(size: 24, weight: .semibold, design: .rounded))
                         .foregroundColor(.white)
                         .shadow(radius: 4)
-                        .padding(.horizontal, 16)
-                        .padding(.bottom, 8)
+                        .padding(.horizontal, GDLSpacing.lg)
+                        .padding(.bottom, GDLSpacing.sm)
                     // Tam genişlik kayan bant
                     RateTickerView(text: ratesTickerText)
                         .frame(maxWidth: .infinity)
@@ -228,7 +266,7 @@ struct HomeView: View {
             .frame(height: 185)
             .clipped()
 
-            Divider().background(Color.gdlDivider).padding(.horizontal, 16)
+            Divider().background(Color.gdlDivider).padding(.horizontal, GDLSpacing.lg)
 
             // Alt: 3×2 stat grid
             HStack(spacing: 0) {
@@ -237,7 +275,15 @@ struct HomeView: View {
             }
             HStack(spacing: 0) {
                 statCell(label: "Günlük Kâr", value: FormatUtils.tl(gameState.dailyProfit),   icon: "arrow.up.right",               color: gameState.dailyProfit >= 0 ? .gdlPositive : .gdlNegative, trailing: true)
-                statCell(label: "Memnuniyet", value: "\(gameState.customerSatisfaction)/100",        icon: "face.smiling",                 color: satisfactionColor, trailing: false)
+                statCell(
+                    label: "Giriş Hakkı",
+                    value: "\(gameState.entryRightsRemaining)/3",
+                    icon: "door.left.hand.open",
+                    color: showEntryRefreshPill ? .gdlNegative : .gdlGold,
+                    trailing: false,
+                    badgeTitle: showEntryRefreshPill ? "Yenile" : nil,
+                    badgeAction: showEntryRefreshPill ? { refreshEntryRightsFromAd() } : nil
+                )
             }
             HStack(spacing: 0) {
                 statCell(label: "Yaşam Puanı", value: "\(gameState.lifestyleScore) puan",            icon: "star.fill",                    color: .gdlGold,   trailing: true)
@@ -245,15 +291,36 @@ struct HomeView: View {
             }
         }
         .background(Color.gdlCard)
-        .cornerRadius(16)
+        .cornerRadius(GDLRadius.lg)
         .clipped()
     }
 
-    private func statCell(label: String, value: String, icon: String, color: Color, trailing: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
-            HStack(spacing: 4) {
+    private func statCell(
+        label: String,
+        value: String,
+        icon: String,
+        color: Color,
+        trailing: Bool,
+        badgeTitle: String? = nil,
+        badgeAction: (() -> Void)? = nil
+    ) -> some View {
+        VStack(alignment: .leading, spacing: GDLSpacing.xxs) {
+            HStack(spacing: GDLSpacing.xxs) {
                 Image(systemName: icon).font(.caption2).foregroundColor(color.opacity(0.75))
                 Text(label).font(.gdlCaption()).foregroundColor(.gdlTextSecondary)
+                Spacer(minLength: 0)
+                if let badgeTitle, let badgeAction {
+                    Button(action: badgeAction) {
+                        Text(badgeTitle)
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(.black)
+                            .padding(.horizontal, GDLSpacing.xs)
+                            .padding(.vertical, 4)
+                            .background(Color.gdlGold)
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                }
             }
             Text(value)
                 .font(.system(size: 17, weight: .bold, design: .rounded))
@@ -262,8 +329,8 @@ struct HomeView: View {
                 .minimumScaleFactor(0.7)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.horizontal, GDLSpacing.lg)
+        .padding(.vertical, GDLSpacing.sm)
         .overlay(alignment: .trailing) {
             if trailing {
                 Rectangle().frame(width: 1).foregroundColor(Color.gdlDivider)
@@ -277,7 +344,7 @@ struct HomeView: View {
     private var eventOrTipBanner: some View {
         if let event = gameState.activeEvents.first(where: { $0.isActive }) {
             // Aktif etkinlik — altın şerit, kompakt
-            HStack(alignment: .center, spacing: 8) {
+            HStack(alignment: .center, spacing: GDLSpacing.sm) {
                 Image(systemName: "bell.badge.fill")
                     .font(.caption)
                     .foregroundColor(.black)
@@ -300,20 +367,20 @@ struct HomeView: View {
                 Text("\(event.remainingDays)g")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundColor(.black.opacity(0.7))
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
+                    .padding(.horizontal, GDLSpacing.xs)
+                    .padding(.vertical, GDLSpacing.xxxs)
                     .background(Color.black.opacity(0.12))
-                    .cornerRadius(5)
+                    .cornerRadius(GDLRadius.sm)
                     .fixedSize()
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            .padding(.horizontal, GDLSpacing.md)
+            .padding(.vertical, GDLSpacing.sm)
             .background(Color.gdlGold)
-            .cornerRadius(10)
+            .cornerRadius(GDLRadius.sm)
         } else {
             // Etkinlik yok — ince bilgi satırı
             let tip = infoTips[tipIndex]
-            HStack(alignment: .center, spacing: 8) {
+            HStack(alignment: .center, spacing: GDLSpacing.sm) {
                 Image(systemName: tip.icon)
                     .font(.caption)
                     .foregroundColor(.gdlGold)
@@ -326,10 +393,10 @@ struct HomeView: View {
                 .frame(maxWidth: .infinity)
                 .frame(height: 18)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            .padding(.horizontal, GDLSpacing.md)
+            .padding(.vertical, GDLSpacing.sm)
             .background(Color.gdlCard)
-            .cornerRadius(10)
+            .cornerRadius(GDLRadius.sm)
         }
     }
 
@@ -402,20 +469,10 @@ struct HomeView: View {
             Spacer()
 
             HStack(spacing: 6) {
-                Button {
+                CompactActionButton(title: "Gir", icon: "chevron.right", iconTrailing: true, style: .gold) {
                     audioManager.playEffect(.buttonTap)
-                    gameState.enterShop(shop)
-                    showCounter = true
-                } label: {
-                    Text("Gir")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.black)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(Color.gdlGold)
-                        .cornerRadius(8)
+                    promptEntry(for: shop)
                 }
-                .buttonStyle(.plain)
             }
         }
         .padding(.horizontal, 16)
@@ -439,38 +496,35 @@ struct HomeView: View {
                     .contentTransition(.numericText())
             }
             Spacer()
-            Button {
-                audioManager.playEffect(.buttonTap)
-                adManager.showAd {
-                    let amount = gameState.passiveIncomeAvailable
-                    gameState.collectPassiveIncome()
-                    audioManager.playEffect(.passiveCollect)
-                    lastCollectedAmount = amount
-                    showIncomeAlert = true
-                }
-            } label: {
-                if adManager.isLoading {
-                    HStack(spacing: 6) {
-                        ProgressView().tint(.gdlTextSecondary).scaleEffect(0.75)
-                        Text("Hazırlanıyor")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(.gdlTextSecondary)
-                    }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
-                    .background(Color.gdlCardSecondary)
-                    .cornerRadius(10)
-                } else {
-                    Label("İzle & Topla", systemImage: "play.rectangle.fill")
+            if adManager.isLoading {
+                HStack(spacing: 6) {
+                    ProgressView().tint(.gdlTextSecondary).scaleEffect(0.75)
+                    Text("Hazırlanıyor")
                         .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(canCollect ? .black : .gdlTextSecondary)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
-                        .background(canCollect ? Color.gdlGold : Color.gdlCardSecondary)
-                        .cornerRadius(10)
+                        .foregroundColor(.gdlTextSecondary)
                 }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(Color.gdlCardSecondary)
+                .cornerRadius(10)
+            } else {
+                CompactActionButton(
+                    title: "İzle & Topla",
+                    icon: "play.rectangle.fill",
+                    style: .gold,
+                    isDisabled: !canCollect
+                ) {
+                    audioManager.playEffect(.buttonTap)
+                    adManager.showAd {
+                        let amount = gameState.passiveIncomeAvailable
+                        gameState.collectPassiveIncome()
+                        audioManager.playEffect(.passiveCollect)
+                        lastCollectedAmount = amount
+                        showIncomeAlert = true
+                    }
+                }
+                .disabled(!canCollect)
             }
-            .disabled(!canCollect)
         }
     }
 
@@ -524,32 +578,30 @@ struct HomeView: View {
 
     // MARK: - Sıralama Kartı
 
-    private let rankingPlayerID = UUID()
-
-    private var rankingPlayerEntry: LeaderboardEntry {
-        LeaderboardEntry(
-            id: rankingPlayerID,
-            playerName: "Sen (Benim Dükkanım)",
-            dailyProfit: gameState.dailyProfit,
-            weeklyProfit: gameState.weeklyProfit,
-            monthlyRevenue: gameState.monthlyRevenue,
-            netWorth: gameState.totalNetWorth,
-            cashBalance: gameState.playerCash,
-            lifestylePoints: gameState.lifestyleScore,
-            isPlayer: true
-        )
+    private var leaderboardUpdatedDateString: String {
+        guard let leaderboardUpdatedAt else { return "" }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "tr_TR")
+        formatter.timeZone = TimeZone(identifier: "Europe/Istanbul")
+        formatter.dateFormat = "d MMMM yyyy"
+        return formatter.string(from: leaderboardUpdatedAt)
     }
 
     private var rankingCard: some View {
         let tabs = ["Toplam Servet", "Toplam Nakit", "Yaşam Puanı"]
-
-        let top10       = [rankingPlayerEntry]
+        let rankedEntries = leaderboardRankedEntries
 
         return VStack(alignment: .leading, spacing: 0) {
             // Başlık
             HStack(spacing: 6) {
                 Image(systemName: "trophy.fill").foregroundColor(.gdlGold).font(.subheadline)
-                Text("Benim Sıralamam").font(.gdlHeadline()).foregroundColor(.gdlTextPrimary)
+                Text("Kuyumcular").font(.gdlHeadline()).foregroundColor(.gdlTextPrimary)
+                Spacer()
+                if !leaderboardUpdatedDateString.isEmpty {
+                    Text(leaderboardUpdatedDateString)
+                        .font(.gdlCaption())
+                        .foregroundColor(.gdlTextSecondary)
+                }
             }
             .padding(.horizontal, 16)
             .padding(.top, 14)
@@ -581,9 +633,26 @@ struct HomeView: View {
             Divider().background(Color.gdlDivider).padding(.horizontal, 16)
 
             // İlk 10
-            ForEach(Array(top10.enumerated()), id: \.element.id) { idx, entry in
-                rankingRow(rank: idx + 1, entry: entry, tab: rankingTab)
-                if idx < top10.count - 1 {
+            if leaderboardLoading && rankedEntries.isEmpty {
+                HStack(spacing: 10) {
+                    ProgressView().tint(.gdlGold)
+                    Text("Sıralama yükleniyor...")
+                        .font(.system(size: 13))
+                        .foregroundColor(.gdlTextSecondary)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+            } else if rankedEntries.isEmpty {
+                Text("Henüz yeterli oyuncu verisi yok.")
+                    .font(.system(size: 13))
+                    .foregroundColor(.gdlTextSecondary)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+            }
+
+            ForEach(Array(rankedEntries.enumerated()), id: \.element.entry.id) { idx, ranked in
+                rankingRow(rank: ranked.rank, entry: ranked.entry, tab: rankingTab)
+                if idx < rankedEntries.count - 1 {
                     Divider().background(Color.gdlDivider).padding(.leading, 58)
                 }
             }
@@ -603,7 +672,7 @@ struct HomeView: View {
 
         return HStack(spacing: 12) {
             rankBadge(rank)
-            Text(entry.isPlayer ? gameState.shopName : entry.playerName)
+            Text(entry.playerName)
                 .font(.gdlBody())
                 .foregroundColor(entry.isPlayer ? .gdlGold : .gdlTextPrimary)
                 .lineLimit(1)
@@ -698,6 +767,43 @@ struct HomeView: View {
         return result
     }
 
+    private var leaderboardRankedEntries: [(rank: Int, entry: LeaderboardEntry)] {
+        let currentUserId = AuthService.shared.userId
+        let normalizedEntries = leaderboardEntries.map { entry in
+            var normalized = entry
+            normalized.isPlayer = entry.id == currentUserId
+            return normalized
+        }
+        let sorted = normalizedEntries.sorted { lhs, rhs in
+            switch rankingTab {
+            case 1:
+                return lhs.cashBalance > rhs.cashBalance
+            case 2:
+                return lhs.lifestylePoints > rhs.lifestylePoints
+            default:
+                return lhs.netWorth > rhs.netWorth
+            }
+        }
+
+        var ranked = Array(sorted.prefix(10)).enumerated().map { (rank: $0.offset + 1, entry: $0.element) }
+        if let currentUserId,
+           !ranked.contains(where: { $0.entry.id == currentUserId }),
+           let playerRank = sorted.firstIndex(where: { $0.id == currentUserId }) {
+            ranked.append((rank: playerRank + 1, entry: sorted[playerRank]))
+        }
+        return ranked
+    }
+
+    private func refreshLeaderboard() async {
+        await MainActor.run { leaderboardLoading = true }
+        let snapshot = await SupabaseSaveService.fetchDailyLeaderboardSnapshot()
+        await MainActor.run {
+            leaderboardEntries = snapshot?.entries ?? []
+            leaderboardUpdatedAt = snapshot?.updatedAt
+            leaderboardLoading = false
+        }
+    }
+
     private func rateIcon(for type: String) -> String {
         switch type {
         case "gramGold":    return "circle.fill"
@@ -710,12 +816,27 @@ struct HomeView: View {
         }
     }
 
-    // MARK: - Yardımcılar
+    private func promptEntry(for shop: Shop) {
+        gameState.syncEntryRightsIfNeeded()
+        selectedShopForEntry = shop
 
-    private var satisfactionColor: Color {
-        if gameState.customerSatisfaction >= 70 { return .gdlPositive }
-        if gameState.customerSatisfaction >= 40 { return .orange }
-        return .gdlNegative
+        if gameState.canEnterShop {
+            showEntryConfirmDialog = true
+        } else {
+            showEntryRightsExhaustedDialog = true
+        }
+    }
+
+    private func refreshEntryRightsFromAd() {
+        guard adManager.isAdReady else {
+            adManager.loadAd()
+            showAdNotReadyAlert = true
+            return
+        }
+
+        adManager.showAd {
+            gameState.refreshEntryRightsFromAd()
+        }
     }
 }
 

@@ -2,20 +2,19 @@ import Foundation
 import Supabase
 
 // MARK: - Database Row Types
-// snake_case → Supabase sütun adlarıyla birebir eşleşir
 
 struct PlayerStatsRow: Codable {
     var userId: UUID
     var shopName: String
+    var activeShopKey: String?
     var playerCash: Double
-    var inventoryTry: Double
     var inventoryUsd: Double
     var inventoryEur: Double
     var inventoryGram: Double
     var inventoryQuarter: Double
     var inventoryHalf: Double
     var inventoryFull: Double
-    var customerSatisfaction: Int
+    var entryRightsRemaining: Int
     var totalProfit: Double
     var dailyProfit: Double
     var weeklyProfit: Double
@@ -26,80 +25,149 @@ struct PlayerStatsRow: Codable {
     var totalTransactions: Int
     var acceptedDeals: Int
     var rejectedDeals: Int
-    var trustScore: Double
     var lifestyleScore: Int
     var yesterdayCash: Double
     var dailyRewardDay: Int
-    var dailyRewardClaimedAt: String?  // ISO8601
+    var dailyRewardClaimedAt: String?
+    var entryRightsRefreshedAt: String?
 
     enum CodingKeys: String, CodingKey {
-        case userId                     = "user_id"
-        case shopName                   = "shop_name"
-        case playerCash                 = "player_cash"
-        case inventoryTry               = "inventory_try"
-        case inventoryUsd               = "inventory_usd"
-        case inventoryEur               = "inventory_eur"
-        case inventoryGram              = "inventory_gram"
-        case inventoryQuarter           = "inventory_quarter"
-        case inventoryHalf              = "inventory_half"
-        case inventoryFull              = "inventory_full"
-        case customerSatisfaction       = "customer_satisfaction"
-        case totalProfit                = "total_profit"
-        case dailyProfit                = "daily_profit"
-        case weeklyProfit               = "weekly_profit"
-        case monthlyRevenue             = "monthly_revenue"
-        case currentDay                 = "current_day"
-        case passiveIncomeBalance       = "passive_income_balance"
-        case passiveIncomeUpdatedAt     = "passive_income_updated_at"
-        case totalTransactions          = "total_transactions"
-        case acceptedDeals              = "accepted_deals"
-        case rejectedDeals              = "rejected_deals"
-        case trustScore                 = "trust_score"
-        case lifestyleScore             = "lifestyle_score"
-        case yesterdayCash              = "yesterday_cash"
-        case dailyRewardDay             = "daily_reward_day"
-        case dailyRewardClaimedAt       = "daily_reward_claimed_at"
+        case userId = "user_id"
+        case shopName = "shop_name"
+        case activeShopKey = "active_shop_key"
+        case playerCash = "player_cash"
+        case inventoryUsd = "inventory_usd"
+        case inventoryEur = "inventory_eur"
+        case inventoryGram = "inventory_gram"
+        case inventoryQuarter = "inventory_quarter"
+        case inventoryHalf = "inventory_half"
+        case inventoryFull = "inventory_full"
+        case entryRightsRemaining = "entry_rights_remaining"
+        case totalProfit = "total_profit"
+        case dailyProfit = "daily_profit"
+        case weeklyProfit = "weekly_profit"
+        case monthlyRevenue = "monthly_revenue"
+        case currentDay = "current_day"
+        case passiveIncomeBalance = "passive_income_balance"
+        case passiveIncomeUpdatedAt = "passive_income_updated_at"
+        case totalTransactions = "total_transactions"
+        case acceptedDeals = "accepted_deals"
+        case rejectedDeals = "rejected_deals"
+        case lifestyleScore = "lifestyle_score"
+        case yesterdayCash = "yesterday_cash"
+        case dailyRewardDay = "daily_reward_day"
+        case dailyRewardClaimedAt = "daily_reward_claimed_at"
+        case entryRightsRefreshedAt = "entry_rights_refreshed_at"
+    }
+}
+
+struct SavePlayerStatsPayload: Encodable {
+    var shopName: String
+    var activeShopKey: String?
+    var playerCash: Double
+    var inventoryUsd: Double
+    var inventoryEur: Double
+    var inventoryGram: Double
+    var inventoryQuarter: Double
+    var inventoryHalf: Double
+    var inventoryFull: Double
+    var entryRightsRemaining: Int
+    var totalProfit: Double
+    var dailyProfit: Double
+    var weeklyProfit: Double
+    var monthlyRevenue: Double
+    var currentDay: Int
+    var passiveIncomeBalance: Double
+    var passiveIncomeUpdatedAt: String
+    var totalTransactions: Int
+    var acceptedDeals: Int
+    var rejectedDeals: Int
+    var lifestyleScore: Int
+    var yesterdayCash: Double
+    var dailyRewardDay: Int
+    var dailyRewardClaimedAt: String?
+    var entryRightsRefreshedAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case shopName = "shop_name"
+        case activeShopKey = "active_shop_key"
+        case playerCash = "player_cash"
+        case inventoryUsd = "inventory_usd"
+        case inventoryEur = "inventory_eur"
+        case inventoryGram = "inventory_gram"
+        case inventoryQuarter = "inventory_quarter"
+        case inventoryHalf = "inventory_half"
+        case inventoryFull = "inventory_full"
+        case entryRightsRemaining = "entry_rights_remaining"
+        case totalProfit = "total_profit"
+        case dailyProfit = "daily_profit"
+        case weeklyProfit = "weekly_profit"
+        case monthlyRevenue = "monthly_revenue"
+        case currentDay = "current_day"
+        case passiveIncomeBalance = "passive_income_balance"
+        case passiveIncomeUpdatedAt = "passive_income_updated_at"
+        case totalTransactions = "total_transactions"
+        case acceptedDeals = "accepted_deals"
+        case rejectedDeals = "rejected_deals"
+        case lifestyleScore = "lifestyle_score"
+        case yesterdayCash = "yesterday_cash"
+        case dailyRewardDay = "daily_reward_day"
+        case dailyRewardClaimedAt = "daily_reward_claimed_at"
+        case entryRightsRefreshedAt = "entry_rights_refreshed_at"
     }
 
-    init(from state: GameState, userId: UUID) {
-        self.userId                      = userId
-        self.shopName                    = state.shopName
-        self.playerCash                  = state.playerCash
-        self.inventoryTry                = state.inventory.tryCash
-        self.inventoryUsd                = state.inventory.usd
-        self.inventoryEur                = state.inventory.eur
-        self.inventoryGram               = state.inventory.gramGold
-        self.inventoryQuarter            = state.inventory.quarterGold
-        self.inventoryHalf               = state.inventory.halfGold
-        self.inventoryFull               = state.inventory.fullGold
-        self.customerSatisfaction        = state.customerSatisfaction
-        self.totalProfit                 = state.totalProfit
-        self.dailyProfit                 = state.dailyProfit
-        self.weeklyProfit                = state.weeklyProfit
-        self.monthlyRevenue              = state.monthlyRevenue
-        self.currentDay                  = state.currentDay
-        self.passiveIncomeBalance        = state.passiveIncomeBalance
-        self.totalTransactions           = state.totalTransactions
-        self.acceptedDeals               = state.acceptedDeals
-        self.rejectedDeals               = state.rejectedDeals
-        self.trustScore                  = state.trustScore
-        self.lifestyleScore              = state.lifestyleScore
-        self.yesterdayCash               = state.yesterdayCash
-        let isoFmt = ISO8601DateFormatter()
-        self.passiveIncomeUpdatedAt      = isoFmt.string(from: state.passiveIncomeUpdatedAt)
-        self.dailyRewardDay              = state.dailyRewardDay
-        self.dailyRewardClaimedAt        = state.dailyRewardClaimedAt.map { isoFmt.string(from: $0) }
+    init(from state: GameState) {
+        let isoFormatter = ISO8601DateFormatter()
+        shopName = state.shopName
+        activeShopKey = state.activeShopKey
+        playerCash = state.playerCash
+        inventoryUsd = state.inventory.usd
+        inventoryEur = state.inventory.eur
+        inventoryGram = state.inventory.gramGold
+        inventoryQuarter = state.inventory.quarterGold
+        inventoryHalf = state.inventory.halfGold
+        inventoryFull = state.inventory.fullGold
+        entryRightsRemaining = state.entryRightsRemaining
+        totalProfit = state.totalProfit
+        dailyProfit = state.dailyProfit
+        weeklyProfit = state.weeklyProfit
+        monthlyRevenue = state.monthlyRevenue
+        currentDay = state.currentDay
+        passiveIncomeBalance = state.passiveIncomeBalance
+        passiveIncomeUpdatedAt = isoFormatter.string(from: state.passiveIncomeUpdatedAt)
+        totalTransactions = state.totalTransactions
+        acceptedDeals = state.acceptedDeals
+        rejectedDeals = state.rejectedDeals
+        lifestyleScore = state.lifestyleScore
+        yesterdayCash = state.yesterdayCash
+        dailyRewardDay = state.dailyRewardDay
+        dailyRewardClaimedAt = state.dailyRewardClaimedAt.map { isoFormatter.string(from: $0) }
+        entryRightsRefreshedAt = state.entryRightsRefreshedAt.map { isoFormatter.string(from: $0) }
     }
 }
 
 struct OwnedShopRow: Codable {
     var userId: UUID
+    var shopKey: String?
     var shopName: String
     var employeeCount: Int
 
     enum CodingKeys: String, CodingKey {
-        case userId        = "user_id"
-        case shopName      = "shop_name"
+        case userId = "user_id"
+        case shopKey = "shop_key"
+        case shopName = "shop_name"
+        case employeeCount = "employee_count"
+    }
+}
+
+struct SaveOwnedShopPayload: Encodable {
+    var shopKey: String
+    var shopName: String
+    var employeeCount: Int
+
+    enum CodingKeys: String, CodingKey {
+        case shopKey = "shop_key"
+        case shopName = "shop_name"
         case employeeCount = "employee_count"
     }
 }
@@ -109,94 +177,142 @@ struct LifestyleItemRow: Codable {
     var itemName: String
 
     enum CodingKeys: String, CodingKey {
-        case userId   = "user_id"
+        case userId = "user_id"
         case itemName = "item_name"
     }
 }
 
-struct GoldRatesRow: Codable {
-    var gramBuy:          Double
-    var gramSell:         Double
-    var gramChangeDir:    Int
-    var quarterBuy:       Double
-    var quarterSell:      Double
-    var quarterChangeDir: Int
-    var halfBuy:          Double
-    var halfSell:         Double
-    var halfChangeDir:    Int
-    var fullBuy:          Double
-    var fullSell:         Double
-    var fullChangeDir:    Int
-    var usdBuy:           Double
-    var usdSell:          Double
-    var usdChangeDir:     Int
-    var eurBuy:           Double
-    var eurSell:          Double
-    var eurChangeDir:     Int
-    var sourceName:       String
-    var fetchedAt:        String
+struct SaveLifestyleItemPayload: Encodable {
+    var itemName: String
 
     enum CodingKeys: String, CodingKey {
-        case gramBuy          = "gram_buy"
-        case gramSell         = "gram_sell"
-        case gramChangeDir    = "gram_change_dir"
-        case quarterBuy       = "quarter_buy"
-        case quarterSell      = "quarter_sell"
-        case quarterChangeDir = "quarter_change_dir"
-        case halfBuy          = "half_buy"
-        case halfSell         = "half_sell"
-        case halfChangeDir    = "half_change_dir"
-        case fullBuy          = "full_buy"
-        case fullSell         = "full_sell"
-        case fullChangeDir    = "full_change_dir"
-        case usdBuy           = "usd_buy"
-        case usdSell          = "usd_sell"
-        case usdChangeDir     = "usd_change_dir"
-        case eurBuy           = "eur_buy"
-        case eurSell          = "eur_sell"
-        case eurChangeDir     = "eur_change_dir"
-        case sourceName       = "source_name"
-        case fetchedAt        = "fetched_at"
+        case itemName = "item_name"
     }
 }
 
-// MARK: - Leaderboard Row
+private struct SaveGameStateRequest: Encodable {
+    let clientVersion: String
+    let stats: SavePlayerStatsPayload
+    let ownedShops: [SaveOwnedShopPayload]
+    let lifestyleItems: [SaveLifestyleItemPayload]
+
+    enum CodingKeys: String, CodingKey {
+        case clientVersion = "client_version"
+        case stats
+        case ownedShops = "owned_shops"
+        case lifestyleItems = "lifestyle_items"
+    }
+}
+
+private struct SaveGameStateResponse: Decodable {
+    let success: Bool
+    let error: String?
+}
+
+struct GoldRatesRow: Codable {
+    var gramBuy: Double
+    var gramSell: Double
+    var gramChangeDir: Int
+    var quarterBuy: Double
+    var quarterSell: Double
+    var quarterChangeDir: Int
+    var halfBuy: Double
+    var halfSell: Double
+    var halfChangeDir: Int
+    var fullBuy: Double
+    var fullSell: Double
+    var fullChangeDir: Int
+    var usdBuy: Double
+    var usdSell: Double
+    var usdChangeDir: Int
+    var eurBuy: Double
+    var eurSell: Double
+    var eurChangeDir: Int
+    var sourceName: String
+    var fetchedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case gramBuy = "gram_buy"
+        case gramSell = "gram_sell"
+        case gramChangeDir = "gram_change_dir"
+        case quarterBuy = "quarter_buy"
+        case quarterSell = "quarter_sell"
+        case quarterChangeDir = "quarter_change_dir"
+        case halfBuy = "half_buy"
+        case halfSell = "half_sell"
+        case halfChangeDir = "half_change_dir"
+        case fullBuy = "full_buy"
+        case fullSell = "full_sell"
+        case fullChangeDir = "full_change_dir"
+        case usdBuy = "usd_buy"
+        case usdSell = "usd_sell"
+        case usdChangeDir = "usd_change_dir"
+        case eurBuy = "eur_buy"
+        case eurSell = "eur_sell"
+        case eurChangeDir = "eur_change_dir"
+        case sourceName = "source_name"
+        case fetchedAt = "fetched_at"
+    }
+}
 
 struct LeaderboardRow: Codable {
-    var userId:          UUID
-    var shopName:        String
-    var playerCash:      Double
-    var inventoryGram:   Double
+    var userId: UUID
+    var shopName: String
+    var playerCash: Double
+    var inventoryGram: Double
     var inventoryQuarter: Double
-    var inventoryHalf:   Double
-    var inventoryFull:   Double
-    var inventoryUsd:    Double
-    var inventoryEur:    Double
-    var dailyProfit:     Double
-    var weeklyProfit:    Double
-    var monthlyRevenue:  Double
-    var totalProfit:     Double
-    var lifestyleScore:  Int
+    var inventoryHalf: Double
+    var inventoryFull: Double
+    var inventoryUsd: Double
+    var inventoryEur: Double
+    var dailyProfit: Double
+    var weeklyProfit: Double
+    var monthlyRevenue: Double
+    var totalProfit: Double
+    var lifestyleScore: Int
 
     enum CodingKeys: String, CodingKey {
-        case userId          = "user_id"
-        case shopName        = "shop_name"
-        case playerCash      = "player_cash"
-        case inventoryGram   = "inventory_gram"
+        case userId = "user_id"
+        case shopName = "shop_name"
+        case playerCash = "player_cash"
+        case inventoryGram = "inventory_gram"
         case inventoryQuarter = "inventory_quarter"
-        case inventoryHalf   = "inventory_half"
-        case inventoryFull   = "inventory_full"
-        case inventoryUsd    = "inventory_usd"
-        case inventoryEur    = "inventory_eur"
-        case dailyProfit     = "daily_profit"
-        case weeklyProfit    = "weekly_profit"
-        case monthlyRevenue  = "monthly_revenue"
-        case totalProfit     = "total_profit"
-        case lifestyleScore  = "lifestyle_score"
+        case inventoryHalf = "inventory_half"
+        case inventoryFull = "inventory_full"
+        case inventoryUsd = "inventory_usd"
+        case inventoryEur = "inventory_eur"
+        case dailyProfit = "daily_profit"
+        case weeklyProfit = "weekly_profit"
+        case monthlyRevenue = "monthly_revenue"
+        case totalProfit = "total_profit"
+        case lifestyleScore = "lifestyle_score"
     }
 }
 
-// MARK: - Event Row (game_events tablosu)
+struct DailyLeaderboardSnapshotRow: Codable {
+    var snapshotDate: String
+    var userId: UUID
+    var shopName: String
+    var totalNetWorth: Double
+    var totalCash: Double
+    var lifestyleScore: Int
+    var updatedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case snapshotDate = "snapshot_date"
+        case userId = "user_id"
+        case shopName = "shop_name"
+        case totalNetWorth = "total_net_worth"
+        case totalCash = "total_cash"
+        case lifestyleScore = "lifestyle_score"
+        case updatedAt = "updated_at"
+    }
+}
+
+struct DailyLeaderboardSnapshot {
+    let updatedAt: Date
+    let entries: [LeaderboardEntry]
+}
 
 struct EventRow: Codable {
     var id: UUID
@@ -208,23 +324,21 @@ struct EventRow: Codable {
     var generosityModifier: Double
     var vipModifier: Double
     var isActive: Bool
-    var endsAt: String?         // ISO8601 — opsiyonel bitiş tarihi
+    var endsAt: String?
 
     enum CodingKeys: String, CodingKey {
-        case id                 = "id"
-        case name               = "name"
-        case description        = "description"
-        case icon               = "icon"
-        case accentColor        = "accent_color"
-        case trafficModifier    = "traffic_modifier"
+        case id
+        case name
+        case description
+        case icon
+        case accentColor = "accent_color"
+        case trafficModifier = "traffic_modifier"
         case generosityModifier = "generosity_modifier"
-        case vipModifier        = "vip_modifier"
-        case isActive           = "is_active"
-        case endsAt             = "ends_at"
+        case vipModifier = "vip_modifier"
+        case isActive = "is_active"
+        case endsAt = "ends_at"
     }
 }
-
-// MARK: - Supabase Save Service
 
 class SupabaseSaveService {
     private static func parseISODate(_ raw: String?) -> Date? {
@@ -239,90 +353,84 @@ class SupabaseSaveService {
         return ISO8601DateFormatter().date(from: raw)
     }
 
-    // MARK: - Save
+    private static func parseEventDate(_ raw: String?) -> Date? {
+        guard let raw else { return nil }
+
+        let fractionalFormatter = ISO8601DateFormatter()
+        fractionalFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = fractionalFormatter.date(from: raw) {
+            return date
+        }
+
+        return ISO8601DateFormatter().date(from: raw)
+    }
 
     static func save(_ state: GameState) async {
-        guard let userId = AuthService.shared.userId else { return }
-
-        async let statsTask: Void     = saveStats(state, userId: userId)
-        async let shopsTask: Void     = saveShops(state, userId: userId)
-        async let lifestyleTask: Void = saveLifestyle(state, userId: userId)
-
-        _ = await (statsTask, shopsTask, lifestyleTask)
-    }
-
-    private static func saveStats(_ state: GameState, userId: UUID) async {
-        let row = PlayerStatsRow(from: state, userId: userId)
-        do {
-            try await supabase
-                .from("player_stats")
-                .upsert(row)
-                .execute()
-        } catch {
-            print("[SupabaseSave] player_stats hata:", error.localizedDescription)
+        guard let accessToken = AuthService.shared.session?.accessToken else { return }
+        await MainActor.run {
+            state.cloudSyncStatus = .syncing
+            state.cloudSyncErrorMessage = nil
         }
-    }
 
-    private static func saveShops(_ state: GameState, userId: UUID) async {
-        let rows = state.ownedShops.map {
-            OwnedShopRow(userId: userId, shopName: $0.name, employeeCount: $0.employeeCount)
-        }
+        let request = SaveGameStateRequest(
+            clientVersion: AppVersion.current.short,
+            stats: SavePlayerStatsPayload(from: state),
+            ownedShops: state.ownedShops.map {
+                SaveOwnedShopPayload(shopKey: $0.key, shopName: $0.name, employeeCount: $0.employeeCount)
+            },
+            lifestyleItems: state.lifestyleItems
+                .filter(\.isOwned)
+                .map { SaveLifestyleItemPayload(itemName: $0.name) }
+        )
+
         do {
-            // Mevcut kayıtları sil, yenilerini yaz
-            try await supabase
-                .from("owned_shops")
-                .delete()
-                .eq("user_id", value: userId.uuidString)
-                .execute()
-            if !rows.isEmpty {
-                try await supabase
-                    .from("owned_shops")
-                    .insert(rows)
-                    .execute()
+            supabase.functions.setAuth(token: accessToken)
+            let response: SaveGameStateResponse = try await supabase.functions.invoke(
+                "save-game-state",
+                options: FunctionInvokeOptions(method: .post, body: request)
+            )
+
+            if !response.success {
+                let message = response.error ?? "Bilinmeyen hata"
+                print("[SupabaseSave] save-game-state hata:", message)
+                await MainActor.run {
+                    state.cloudSyncStatus = .failed
+                    state.cloudSyncErrorMessage = message
+                }
+                return
+            }
+            await MainActor.run {
+                state.cloudSyncStatus = .synced
+                state.cloudSyncUpdatedAt = Date()
             }
         } catch {
-            print("[SupabaseSave] owned_shops hata:", error.localizedDescription)
-        }
-    }
-
-    private static func saveLifestyle(_ state: GameState, userId: UUID) async {
-        let ownedNames = state.lifestyleItems.filter { $0.isOwned }.map { $0.name }
-        let rows = ownedNames.map { LifestyleItemRow(userId: userId, itemName: $0) }
-        do {
-            try await supabase
-                .from("lifestyle_items")
-                .delete()
-                .eq("user_id", value: userId.uuidString)
-                .execute()
-            if !rows.isEmpty {
-                try await supabase
-                    .from("lifestyle_items")
-                    .insert(rows)
-                    .execute()
+            print("[SupabaseSave] save-game-state invoke hata:", error.localizedDescription)
+            await MainActor.run {
+                state.cloudSyncStatus = .failed
+                state.cloudSyncErrorMessage = error.localizedDescription
             }
-        } catch {
-            print("[SupabaseSave] lifestyle_items hata:", error.localizedDescription)
         }
     }
-
-    // MARK: - Load
 
     @MainActor
     static func load(into state: GameState) async {
         guard let userId = AuthService.shared.userId else { return }
 
-        async let statsResult     = fetchStats(userId: userId)
-        async let shopsResult     = fetchShops(userId: userId)
+        async let statsResult = fetchStats(userId: userId)
+        async let shopsResult = fetchShops(userId: userId)
         async let lifestyleResult = fetchLifestyle(userId: userId)
 
         let (stats, shops, lifestyle) = await (statsResult, shopsResult, lifestyleResult)
 
+        var activeShopKey: String?
         if let stats {
             applyStats(stats, to: state)
+            activeShopKey = stats.activeShopKey
         }
         if let shops {
             applyShops(shops, to: state)
         }
+        restoreActiveShop(activeShopKey, in: state)
         if let lifestyle {
             applyLifestyle(lifestyle, to: state)
         }
@@ -332,14 +440,13 @@ class SupabaseSaveService {
         do {
             let row: PlayerStatsRow = try await supabase
                 .from("player_stats")
-                .select()
+                .select("user_id, shop_name, active_shop_key, player_cash, inventory_usd, inventory_eur, inventory_gram, inventory_quarter, inventory_half, inventory_full, entry_rights_remaining, total_profit, daily_profit, weekly_profit, monthly_revenue, current_day, passive_income_balance, passive_income_updated_at, total_transactions, accepted_deals, rejected_deals, lifestyle_score, yesterday_cash, daily_reward_day, daily_reward_claimed_at, entry_rights_refreshed_at")
                 .eq("user_id", value: userId.uuidString)
                 .single()
                 .execute()
                 .value
             return row
         } catch {
-            // Kayıt henüz yok (yeni kullanıcı) → nil döner, defaults kullanılır
             return nil
         }
     }
@@ -372,79 +479,79 @@ class SupabaseSaveService {
         }
     }
 
-    // MARK: - Apply Fetched Data
-
     private static func applyStats(_ row: PlayerStatsRow, to state: GameState) {
-        state.shopName                    = row.shopName
-        state.playerCash                  = row.playerCash
-        state.inventory.tryCash           = row.inventoryTry
-        state.inventory.usd               = row.inventoryUsd
-        state.inventory.eur               = row.inventoryEur
-        state.inventory.gramGold          = row.inventoryGram
-        state.inventory.quarterGold       = row.inventoryQuarter
-        state.inventory.halfGold          = row.inventoryHalf
-        state.inventory.fullGold          = row.inventoryFull
-        state.customerSatisfaction        = row.customerSatisfaction
-        state.totalProfit                 = row.totalProfit
-        state.dailyProfit                 = row.dailyProfit
-        state.weeklyProfit                = row.weeklyProfit
-        state.monthlyRevenue              = row.monthlyRevenue
-        state.currentDay                  = row.currentDay
-        state.passiveIncomeBalance        = row.passiveIncomeBalance ?? 0
-        state.passiveIncomeUpdatedAt      = parseISODate(row.passiveIncomeUpdatedAt) ?? Date()
-        state.totalTransactions           = row.totalTransactions
-        state.acceptedDeals               = row.acceptedDeals
-        state.rejectedDeals               = row.rejectedDeals
-        state.trustScore                  = row.trustScore
-        state.lifestyleScore              = row.lifestyleScore
-        state.yesterdayCash               = row.yesterdayCash
+        state.shopName = row.shopName
+        state.playerCash = row.playerCash
+        state.inventory.usd = row.inventoryUsd
+        state.inventory.eur = row.inventoryEur
+        state.inventory.gramGold = row.inventoryGram
+        state.inventory.quarterGold = row.inventoryQuarter
+        state.inventory.halfGold = row.inventoryHalf
+        state.inventory.fullGold = row.inventoryFull
+        state.entryRightsRemaining = row.entryRightsRemaining
+        state.totalProfit = row.totalProfit
+        state.dailyProfit = row.dailyProfit
+        state.weeklyProfit = row.weeklyProfit
+        state.monthlyRevenue = row.monthlyRevenue
+        state.currentDay = row.currentDay
+        state.passiveIncomeBalance = row.passiveIncomeBalance ?? 0
+        state.passiveIncomeUpdatedAt = parseISODate(row.passiveIncomeUpdatedAt) ?? Date()
+        state.totalTransactions = row.totalTransactions
+        state.acceptedDeals = row.acceptedDeals
+        state.rejectedDeals = row.rejectedDeals
+        state.lifestyleScore = row.lifestyleScore
+        state.yesterdayCash = row.yesterdayCash
 
-        // Günlük ödül: Supabase verisini ancak yerel veriden daha güncel/eşit ise uygula.
-        // Uygulama kapanırken async save tamamlanmamış olabilir; o durumda
-        // GameSaveService (UserDefaults) yedeği daha doğrudur.
         let supabaseClaimedAt = parseISODate(row.dailyRewardClaimedAt)
         if let supabaseDate = supabaseClaimedAt {
-            // Supabase'de tarih var — daha yeni ya da eşit ise kullan
             if state.dailyRewardClaimedAt == nil || supabaseDate >= state.dailyRewardClaimedAt! {
-                state.dailyRewardDay       = row.dailyRewardDay
+                state.dailyRewardDay = row.dailyRewardDay
                 state.dailyRewardClaimedAt = supabaseDate
             }
-            // else: yerel veri daha yeni — dokunma
-        } else {
-            // Supabase'de tarih yok (save tamamlanmamış) — yerel veri varsa dokunma
-            if state.dailyRewardClaimedAt == nil {
-                state.dailyRewardDay = row.dailyRewardDay
-            }
+        } else if state.dailyRewardClaimedAt == nil {
+            state.dailyRewardDay = row.dailyRewardDay
         }
+
+        let supabaseEntryRefreshDate = parseISODate(row.entryRightsRefreshedAt)
+        if let supabaseEntryRefreshDate {
+            state.entryRightsRefreshedAt = supabaseEntryRefreshDate
+        }
+        state.syncEntryRightsIfNeeded()
     }
 
     private static func applyShops(_ rows: [OwnedShopRow], to state: GameState) {
         guard !rows.isEmpty else { return }
+
         let allShops = GameSeedData.allShops
-        let ownedNames = Set(rows.map { $0.shopName })
-        // Çalışan sayısını Supabase'den gelen değerle güncelle
-        let employeeMap = Dictionary(uniqueKeysWithValues: rows.map { ($0.shopName, $0.employeeCount) })
+        let normalizedRows = rows.compactMap { row -> (key: String, employeeCount: Int)? in
+            let key = row.shopKey ?? GameSeedData.allShops.first(where: { $0.name == row.shopName })?.key
+            guard let key else { return nil }
+            return (key, row.employeeCount)
+        }
+        let ownedKeys = Set(normalizedRows.map(\.key))
+        let employeeMap = Dictionary(uniqueKeysWithValues: normalizedRows.map { ($0.key, $0.employeeCount) })
 
         state.ownedShops = allShops
-            .filter { ownedNames.contains($0.name) }
+            .filter { ownedKeys.contains($0.key) }
             .map { shop in
-                var s = shop
-                s.isOwned = true
-                s.employeeCount = employeeMap[shop.name] ?? shop.employeeCount
-                return s
+                var restoredShop = shop
+                restoredShop.isOwned = true
+                restoredShop.employeeCount = employeeMap[shop.key] ?? shop.employeeCount
+                return restoredShop
             }
-        state.lockedShops = allShops.filter { !ownedNames.contains($0.name) }
-        state.activeShop  = state.ownedShops.first
+        state.lockedShops = allShops.filter { !ownedKeys.contains($0.key) }
+    }
+
+    private static func restoreActiveShop(_ activeShopKey: String?, in state: GameState) {
+        state.activeShop = state.ownedShops.first(where: { $0.key == activeShopKey }) ?? state.ownedShops.first
     }
 
     private static func applyLifestyle(_ rows: [LifestyleItemRow], to state: GameState) {
-        let ownedNames = Set(rows.map { $0.itemName })
-        for i in state.lifestyleItems.indices {
-            state.lifestyleItems[i].isOwned = ownedNames.contains(state.lifestyleItems[i].name)
+        let ownedNames = Set(rows.map(\.itemName))
+        for index in state.lifestyleItems.indices {
+            state.lifestyleItems[index].isOwned = ownedNames.contains(state.lifestyleItems[index].name)
         }
     }
-
-    // MARK: - Rates (Edge Function çıktısından)
 
     static func loadRates(into state: GameState) async {
         do {
@@ -457,28 +564,26 @@ class SupabaseSaveService {
                 .value
 
             func apply(_ type: String, buy: Double, sell: Double, changeDir: Int) {
-                guard let i = state.rates.firstIndex(where: { $0.type == type }) else { return }
-                state.rates[i].buyPrice   = buy
-                state.rates[i].sellPrice  = sell
-                state.rates[i].changeDir  = changeDir
-                state.rates[i].sourceName = row.sourceName
-                state.rates[i].sourceDate = row.fetchedAt
+                guard let index = state.rates.firstIndex(where: { $0.type == type }) else { return }
+                state.rates[index].buyPrice = buy
+                state.rates[index].sellPrice = sell
+                state.rates[index].changeDir = changeDir
+                state.rates[index].sourceName = row.sourceName
+                state.rates[index].sourceDate = row.fetchedAt
             }
 
             await MainActor.run {
-                apply("gramGold",    buy: row.gramBuy,    sell: row.gramSell,    changeDir: row.gramChangeDir)
+                apply("gramGold", buy: row.gramBuy, sell: row.gramSell, changeDir: row.gramChangeDir)
                 apply("quarterGold", buy: row.quarterBuy, sell: row.quarterSell, changeDir: row.quarterChangeDir)
-                apply("halfGold",    buy: row.halfBuy,    sell: row.halfSell,    changeDir: row.halfChangeDir)
-                apply("fullGold",    buy: row.fullBuy,    sell: row.fullSell,    changeDir: row.fullChangeDir)
-                apply("USD",         buy: row.usdBuy,     sell: row.usdSell,     changeDir: row.usdChangeDir)
-                apply("EUR",         buy: row.eurBuy,     sell: row.eurSell,     changeDir: row.eurChangeDir)
+                apply("halfGold", buy: row.halfBuy, sell: row.halfSell, changeDir: row.halfChangeDir)
+                apply("fullGold", buy: row.fullBuy, sell: row.fullSell, changeDir: row.fullChangeDir)
+                apply("USD", buy: row.usdBuy, sell: row.usdSell, changeDir: row.usdChangeDir)
+                apply("EUR", buy: row.eurBuy, sell: row.eurSell, changeDir: row.eurChangeDir)
             }
         } catch {
             print("[SupabaseSave] gold_rates hata:", error.localizedDescription)
         }
     }
-
-    // MARK: - Events (game_events tablosu)
 
     static func loadEvents(into state: GameState) async {
         do {
@@ -488,9 +593,6 @@ class SupabaseSaveService {
                 .eq("is_active", value: true)
                 .execute()
                 .value
-
-            let isoFmt = ISO8601DateFormatter()
-            isoFmt.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
 
             let events = rows.map { row in
                 GameEvent(
@@ -503,7 +605,7 @@ class SupabaseSaveService {
                     generosityModifier: row.generosityModifier,
                     vipModifier: row.vipModifier,
                     isActive: row.isActive,
-                    endsAt: row.endsAt.flatMap { isoFmt.date(from: $0) }
+                    endsAt: parseEventDate(row.endsAt)
                 )
             }
             await MainActor.run { state.activeEvents = events }
@@ -511,8 +613,6 @@ class SupabaseSaveService {
             print("[SupabaseSave] game_events hata:", error.localizedDescription)
         }
     }
-
-    // MARK: - Leaderboard
 
     static func fetchLeaderboard(currentUserId: UUID, rates: [Rate]) async -> [LeaderboardEntry] {
         do {
@@ -531,28 +631,80 @@ class SupabaseSaveService {
 
             return rows.map { row in
                 let netWorth = row.playerCash
-                    + row.inventoryGram    * price("gramGold")
+                    + row.inventoryGram * price("gramGold")
                     + row.inventoryQuarter * price("quarterGold")
-                    + row.inventoryHalf    * price("halfGold")
-                    + row.inventoryFull    * price("fullGold")
-                    + row.inventoryUsd     * price("USD")
-                    + row.inventoryEur     * price("EUR")
+                    + row.inventoryHalf * price("halfGold")
+                    + row.inventoryFull * price("fullGold")
+                    + row.inventoryUsd * price("USD")
+                    + row.inventoryEur * price("EUR")
 
                 return LeaderboardEntry(
-                    id:              row.userId,
-                    playerName:      row.shopName,
-                    dailyProfit:     row.dailyProfit,
-                    weeklyProfit:    row.weeklyProfit,
-                    monthlyRevenue:  row.monthlyRevenue,
-                    netWorth:        netWorth,
-                    cashBalance:     row.playerCash,
+                    id: row.userId,
+                    playerName: row.shopName,
+                    dailyProfit: row.dailyProfit,
+                    weeklyProfit: row.weeklyProfit,
+                    monthlyRevenue: row.monthlyRevenue,
+                    netWorth: netWorth,
+                    cashBalance: row.playerCash,
                     lifestylePoints: row.lifestyleScore,
-                    isPlayer:        false
+                    isPlayer: false
                 )
             }
         } catch {
             print("[SupabaseSave] leaderboard hata:", error.localizedDescription)
             return []
+        }
+    }
+
+    static func fetchDailyLeaderboardSnapshot() async -> DailyLeaderboardSnapshot? {
+        do {
+            struct LatestSnapshotDateRow: Decodable {
+                let snapshotDate: String
+
+                enum CodingKeys: String, CodingKey {
+                    case snapshotDate = "snapshot_date"
+                }
+            }
+
+            let latestDateRow: LatestSnapshotDateRow = try await supabase
+                .from("daily_leaderboard_snapshots")
+                .select("snapshot_date")
+                .order("snapshot_date", ascending: false)
+                .limit(1)
+                .single()
+                .execute()
+                .value
+
+            let rows: [DailyLeaderboardSnapshotRow] = try await supabase
+                .from("daily_leaderboard_snapshots")
+                .select("snapshot_date, user_id, shop_name, total_net_worth, total_cash, lifestyle_score, updated_at")
+                .eq("snapshot_date", value: latestDateRow.snapshotDate)
+                .execute()
+                .value
+
+            guard let firstRow = rows.first,
+                  let updatedAt = parseISODate(firstRow.updatedAt) else {
+                return nil
+            }
+
+            let entries = rows.map { row in
+                LeaderboardEntry(
+                    id: row.userId,
+                    playerName: row.shopName,
+                    dailyProfit: 0,
+                    weeklyProfit: 0,
+                    monthlyRevenue: 0,
+                    netWorth: row.totalNetWorth,
+                    cashBalance: row.totalCash,
+                    lifestylePoints: row.lifestyleScore,
+                    isPlayer: false
+                )
+            }
+
+            return DailyLeaderboardSnapshot(updatedAt: updatedAt, entries: entries)
+        } catch {
+            print("[SupabaseSave] daily leaderboard snapshot hata:", error.localizedDescription)
+            return nil
         }
     }
 }

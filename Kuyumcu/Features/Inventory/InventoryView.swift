@@ -33,15 +33,14 @@ struct InventoryView: View {
 
     var body: some View {
         ZStack {
-            Color.gdlBackground.ignoresSafeArea()
             ScrollView(showsIndicators: false) {
-                VStack(spacing: 14) {
+                VStack(spacing: GDLSpacing.md) {
                     summaryCard
                     tlCashCard
                     inventoryListCard
                     Spacer(minLength: 80)
                 }
-                .padding(.top, 8)
+                .padding(.top, GDLSpacing.md)
             }
 
             // Merkezi al/sat diyaloğu
@@ -54,9 +53,10 @@ struct InventoryView: View {
                     .environmentObject(gameState)
                     .transition(.scale(scale: 0.92).combined(with: .opacity))
                     .animation(.spring(response: 0.28, dampingFraction: 0.8), value: tradeConfig != nil)
-                    .padding(.horizontal, 28)
+                    .padding(.horizontal, GDLSpacing.xxl)
             }
         }
+        .gdlScreenBackground()
         .navigationTitle("Envanter")
         .navigationBarTitleDisplayMode(.large)
     }
@@ -64,14 +64,14 @@ struct InventoryView: View {
     // MARK: - Summary + TL Cash Row
 
     private var summaryCard: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: GDLSpacing.md) {
             // Sol: Toplam değer
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 5) {
+            VStack(alignment: .leading, spacing: GDLSpacing.xs) {
+                HStack(spacing: GDLSpacing.xs) {
                     Image(systemName: "archivebox.fill").font(.caption).foregroundColor(.gdlGold)
                     Text("Toplam Değer").font(.gdlCaption()).foregroundColor(.gdlTextSecondary)
                 }
-                Text(FormatUtils.tl(inv.tryCash + totalInventoryValue))
+                Text(FormatUtils.tl(gameState.playerCash + totalInventoryValue))
                     .font(.system(size: 22, weight: .bold, design: .rounded))
                     .foregroundColor(.gdlGold)
                     .lineLimit(1)
@@ -81,21 +81,21 @@ struct InventoryView: View {
                     .foregroundColor(.gdlTextSecondary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(14)
+            .padding(GDLSpacing.md)
             .gdlCard()
 
             // Sağ: TL Nakit
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 5) {
+            VStack(alignment: .leading, spacing: GDLSpacing.xs) {
+                HStack(spacing: GDLSpacing.xs) {
                     Image(systemName: "turkishlirasign.circle.fill").font(.caption).foregroundColor(.gdlGold)
                     Text("TL Nakit").font(.gdlCaption()).foregroundColor(.gdlTextSecondary)
                 }
-                Text(FormatUtils.tl(inv.tryCash))
+                Text(FormatUtils.tl(gameState.playerCash))
                     .font(.system(size: 22, weight: .bold, design: .rounded))
                     .foregroundColor(.gdlTextPrimary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
-                HStack(spacing: 4) {
+                HStack(spacing: GDLSpacing.xxs) {
                     Image(systemName: "clock").font(.system(size: 10)).foregroundColor(.gdlTextSecondary)
                     Text(gameState.yesterdayCash > 0
                          ? "Dün: \(FormatUtils.tl(gameState.yesterdayCash))"
@@ -106,7 +106,7 @@ struct InventoryView: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(14)
+            .padding(GDLSpacing.md)
             .gdlCard()
         }
         .padding(.horizontal)
@@ -156,19 +156,19 @@ struct InventoryView: View {
     }
 
     private var rowDivider: some View {
-        Divider().background(Color.gdlDivider).padding(.vertical, 2)
+        Divider().background(Color.gdlDivider).padding(.vertical, GDLSpacing.xxxs)
     }
 
     private func tradeRow(label: String, icon: String, color: Color,
                           amount: String, value: String,
                           category: ProductCategory, unit: String) -> some View {
-        HStack(spacing: 8) {
+        HStack(spacing: GDLSpacing.sm) {
             Image(systemName: icon)
                 .foregroundColor(color)
                 .font(.system(size: 16))
                 .frame(width: 22)
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: GDLSpacing.xxxs) {
                 Text(label)
                     .font(.gdlBody()).foregroundColor(.gdlTextPrimary)
                 Text(amount)
@@ -182,7 +182,7 @@ struct InventoryView: View {
                 .foregroundColor(.gdlTextSecondary)
                 .lineLimit(1)
 
-            HStack(spacing: 6) {
+            HStack(spacing: GDLSpacing.xs) {
                 tradeButton("Sat", isBuy: false) {
                     audioManager.playEffect(.buttonTap)
                     tradeConfig = TradeSheetConfig(category: category, name: label, unit: unit, isBuying: false)
@@ -193,18 +193,16 @@ struct InventoryView: View {
                 }
             }
         }
-        .padding(.vertical, 10)
+        .padding(.vertical, GDLSpacing.sm)
     }
 
     private func tradeButton(_ title: String, isBuy: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(title)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(.white)
-                .frame(width: 48, height: 36)
-                .background(isBuy ? Color(red: 0.22, green: 0.60, blue: 0.35) : Color(red: 0.65, green: 0.18, blue: 0.18))
-                .cornerRadius(8)
-        }
+        CompactActionButton(
+            title: title,
+            style: isBuy ? .positive : .negative,
+            minWidth: 48,
+            action: action
+        )
     }
 }
 
@@ -355,21 +353,15 @@ struct QuickTradeDialog: View {
                         .foregroundColor(config.isBuying ? .gdlGold : .gdlPositive)
                 }
                 Spacer()
-                Button {
+                CompactActionButton(
+                    title: config.isBuying ? "Satın Al" : "Sat",
+                    style: config.isBuying ? .gold : .negative,
+                    isDisabled: !canTrade
+                ) {
                     guard canTrade else { return }
                     audioManager.playEffect(.purchase)
                     gameState.quickTrade(category: config.category, qty: qty, isBuying: config.isBuying)
                     onDismiss()
-                } label: {
-                    Text(config.isBuying ? "Satın Al" : "Sat")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(canTrade ? (config.isBuying ? .black : .white) : .gdlTextSecondary)
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 12)
-                        .background(canTrade
-                            ? (config.isBuying ? Color.gdlGold : Color.gdlNegative)
-                            : Color.gdlCardSecondary)
-                        .cornerRadius(12)
                 }
                 .disabled(!canTrade)
             }

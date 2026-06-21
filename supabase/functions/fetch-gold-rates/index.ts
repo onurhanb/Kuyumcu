@@ -41,6 +41,22 @@ Deno.serve(async (_req) => {
 
     if (error) throw error;
 
+    const fetchedAt = new Date();
+    const snapshotDate = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Europe/Istanbul",
+    }).format(fetchedAt);
+    const { error: leaderboardError } = await supabase.rpc("refresh_daily_leaderboard_snapshot_v1", {
+      p_snapshot_date: snapshotDate,
+      p_updated_at: fetchedAt.toISOString(),
+      p_gram_buy: rates.gramBuy,
+      p_quarter_buy: rates.quarterBuy,
+      p_half_buy: rates.halfBuy,
+      p_full_buy: rates.fullBuy,
+      p_usd_buy: rates.usdBuy,
+      p_eur_buy: rates.eurBuy,
+    });
+    if (leaderboardError) throw leaderboardError;
+
     const notification = await sendDailyRateNotifications(supabase, rates);
 
     return new Response(

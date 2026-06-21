@@ -16,6 +16,7 @@ struct KuyumcuApp: App {
     @StateObject private var audioManager   = AudioManager.shared
     @StateObject private var consentManager = ConsentManager.shared
     @StateObject private var pushService    = PushNotificationService.shared
+    @StateObject private var appUpdateService = AppUpdateService.shared
 
     // Yeni kullanıcı → dükkan adı kurulumu
     @State private var needsShopSetup    = false
@@ -27,9 +28,12 @@ struct KuyumcuApp: App {
     var body: some Scene {
         WindowGroup {
             Group {
-                if !authService.isReady {
+                if !appUpdateService.hasChecked || !authService.isReady {
                     // Kayıtlı oturum kontrol edilirken splash göster
                     loadingView
+
+                } else if let requiredUpdate = appUpdateService.requiredUpdate {
+                    ForcedUpdateView(config: requiredUpdate)
 
                 } else if !networkMonitor.isConnected {
                     OfflineView()
@@ -62,6 +66,7 @@ struct KuyumcuApp: App {
             }
             .preferredColorScheme(.dark)
             .task {
+                await appUpdateService.refresh()
                 await consentManager.configureForAdsIfNeeded()
             }
             .onChange(of: authService.session) { _, newSession in
@@ -77,7 +82,9 @@ struct KuyumcuApp: App {
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active {
                     Task {
+                        await appUpdateService.refresh()
                         await SupabaseSaveService.loadRates(into: gameState)
+                        await SupabaseSaveService.loadEvents(into: gameState)
                         await pushService.syncSavedTokenIfPossible()
                     }
                 }
@@ -101,6 +108,9 @@ struct KuyumcuApp: App {
         await SupabaseSaveService.loadRates(into: gameState)
         await SupabaseSaveService.loadEvents(into: gameState)
         await pushService.configureAndSync()
+        await MainActor.run {
+            gameState.syncEntryRightsIfNeeded()
+        }
 
         await MainActor.run {
             isLoadingGameData = false

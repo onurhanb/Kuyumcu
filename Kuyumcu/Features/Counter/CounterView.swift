@@ -35,39 +35,50 @@ struct CounterView: View {
     // MARK: - Body
 
     var body: some View {
-        ZStack {
-            Color.gdlBackground.ignoresSafeArea()
+        GeometryReader { proxy in
+            let availableHeight = proxy.size.height
+            let compactLayout = availableHeight < 850
 
-            VStack(spacing: 0) {
-                topBar
+            ZStack {
+                VStack(spacing: 0) {
+                    topBar(isCompact: compactLayout)
 
-                if let customer = gameState.currentCustomer {
-                    ScrollView(showsIndicators: false) {
-                        VStack(spacing: 0) {
-                            sceneView(customer: customer)
-                                .overlay(alignment: .bottom) {
-                                    if showResult {
-                                        resultToast
-                                            .opacity(toastOpacity)
-                                            .animation(.easeInOut(duration: 0.25), value: toastOpacity)
+                    if let customer = gameState.currentCustomer {
+                        ScrollView(showsIndicators: false) {
+                            VStack(spacing: GDLSpacing.xs) {
+                                summaryBar
+                                    .padding(.horizontal, GDLSpacing.md)
+                                sceneView(customer: customer, availableHeight: availableHeight, isCompact: compactLayout)
+                                    .padding(.horizontal, GDLSpacing.md)
+                                    .overlay(alignment: .bottom) {
+                                        if showResult {
+                                            resultToast
+                                                .opacity(toastOpacity)
+                                                .animation(.easeInOut(duration: 0.25), value: toastOpacity)
+                                        }
                                     }
-                                }
-                            Rectangle().fill(Color.gdlGold.opacity(0.35)).frame(height: 2)
-                            competitorOffersSection(customer: customer)
-                                .padding(.horizontal, 14)
-                            Rectangle().fill(Color.gdlGold.opacity(0.35)).frame(height: 2)
-                            keypadSection(customer: customer)
-                                .padding(.horizontal, 14)
+                                competitorOffersSection(customer: customer)
+                                    .padding(.horizontal, GDLSpacing.md)
+                            }
+                            .padding(.top, GDLSpacing.md)
+                            .padding(.bottom, compactLayout ? GDLSpacing.md : GDLSpacing.lg)
                         }
-                        .padding(.bottom, 20)
+                    } else {
+                        waitingForCustomerView
                     }
-                } else {
-                    waitingForCustomerView
                 }
             }
-
-        // (toast sceneView overlay'inde gösterilir)
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if let customer = gameState.currentCustomer {
+                    keypadSection(customer: customer, isCompact: compactLayout)
+                        .padding(.horizontal, GDLSpacing.md)
+                        .padding(.top, GDLSpacing.sm)
+                        .padding(.bottom, GDLSpacing.sm)
+                        .background(.ultraThinMaterial.opacity(0.08))
+                }
+            }
         }
+        .gdlScreenBackground()
         .onReceive(counterTimer) { _ in
             guard gameState.currentCustomer != nil, !showResult else { return }
             if timeRemaining > 0 {
@@ -120,205 +131,225 @@ struct CounterView: View {
 
     // MARK: - Top Bar
 
-    private var topBar: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Button {
-                    audioManager.playEffect(.buttonTap)
-                    dismiss()
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.title2)
-                        .foregroundColor(.gdlTextSecondary)
-                }
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(gameState.activeShop?.name ?? "Dükkan")
-                        .font(.gdlHeadline())
+    private func topBar(isCompact: Bool) -> some View {
+        HStack(alignment: .top, spacing: GDLSpacing.md) {
+            Button {
+                audioManager.playEffect(.buttonTap)
+                dismiss()
+            } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 16, weight: .bold))
                         .foregroundColor(.gdlTextPrimary)
-                    Text("Sıra: \(gameState.customerQueue.count) müşteri")
-                        .font(.gdlCaption())
-                        .foregroundColor(.gdlTextSecondary)
-                }
-                Spacer()
-                HStack(spacing: 12) {
-                    VStack(alignment: .trailing, spacing: 2) {
-                        Text(FormatUtils.tlCompact(gameState.playerCash))
-                            .font(.gdlHeadline()).foregroundColor(.gdlGold)
-                        Text("Kâr: \(FormatUtils.tlCompact(gameState.dailyProfit))")
-                            .font(.gdlCaption())
-                            .foregroundColor(gameState.dailyProfit >= 0 ? .gdlPositive : .gdlNegative)
-                    }
-                    satisfactionBadge
-                }
+                    .frame(width: 44, height: 44)
+                    .background(Color.gdlCardSecondary)
+                    .clipShape(RoundedRectangle(cornerRadius: GDLRadius.md))
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .background(Color.gdlCard)
+            .buttonStyle(.plain)
 
-            Rectangle().fill(Color.gdlGold.opacity(0.35)).frame(height: 2)
+            VStack(alignment: .leading, spacing: 0) {
+                Text(gameState.activeShop?.name ?? "Dükkan")
+                    .font(.gdlTitle())
+                    .foregroundColor(.gdlTextPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+                Text("\(queueCountText) bekleyen müşteri")
+                    .font(.gdlCaption())
+                    .foregroundColor(.gdlTextSecondary)
+                    .lineLimit(1)
+            }
+            .frame(height: 44, alignment: .center)
+
+            Spacer(minLength: 0)
         }
+        .padding(.horizontal, GDLSpacing.md)
+        .padding(.top, GDLSpacing.xxs)
+        .padding(.bottom, GDLSpacing.xxs)
     }
 
-    private var satisfactionBadge: some View {
-        VStack(spacing: 2) {
-            Text("\(gameState.customerSatisfaction)")
-                .font(.system(size: 13, weight: .bold))
-                .foregroundColor(satisfactionColor)
-            Image(systemName: "face.smiling")
-                .font(.caption)
-                .foregroundColor(satisfactionColor)
+    private var queueCountText: String {
+        let count = max(0, gameState.customerQueue.count - (gameState.currentCustomer == nil ? 0 : 1))
+        return "\(count)"
+    }
+
+    private var summaryBar: some View {
+        HStack(spacing: 0) {
+            summaryItem(icon: "turkishlirasign.circle.fill", label: "Nakit", value: FormatUtils.tlCompact(gameState.playerCash), valueColor: .gdlGold)
+            Divider().background(Color.gdlDivider)
+            summaryItem(icon: "chart.line.uptrend.xyaxis", label: "Kâr", value: FormatUtils.tlCompact(gameState.dailyProfit), valueColor: gameState.dailyProfit >= 0 ? .gdlPositive : .gdlNegative)
+            Divider().background(Color.gdlDivider)
+            summaryItem(icon: "person.3.fill", label: "Sıra", value: "\(max(0, gameState.customerQueue.count))", valueColor: .gdlTextPrimary)
         }
-        .frame(width: 36)
+        .padding(.horizontal, GDLSpacing.sm)
+        .padding(.top, GDLSpacing.xs)
+        .padding(.bottom, GDLSpacing.xs)
+        .background(Color.gdlCard)
+        .overlay(
+            RoundedRectangle(cornerRadius: GDLRadius.lg)
+                .stroke(Color.gdlStroke, lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: GDLRadius.lg))
+    }
+
+    private func summaryItem(icon: String, label: String, value: String, valueColor: Color) -> some View {
+        HStack(spacing: GDLSpacing.xs) {
+            Image(systemName: icon)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(.gdlGold)
+            Text("\(label):")
+                .font(.gdlCaption())
+                .foregroundColor(.gdlTextSecondary)
+            Text(value)
+                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                .foregroundColor(valueColor)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+        }
+        .frame(maxWidth: .infinity)
     }
 
     // MARK: - Timer
 
     private func timerSection(customer: Customer) -> some View {
-        VStack(spacing: 4) {
+        VStack(spacing: GDLSpacing.xxs) {
             TimerBar(progress: timeRemaining / Double(customer.patienceSeconds))
             HStack {
                 Text("Müşteri sabrı")
-                    .font(.gdlCaption()).foregroundColor(.gdlTextSecondary)
+                    .font(.gdlCaption()).foregroundColor(.white.opacity(0.65))
                 Spacer()
                 Text("\(Int(timeRemaining))s")
-                    .font(.gdlCaption()).foregroundColor(timeRemaining < 10 ? .gdlNegative : .gdlTextSecondary)
+                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                    .foregroundColor(timeRemaining < 10 ? .gdlNegative : .white.opacity(0.72))
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 6)
     }
 
     // MARK: - Scene View (Interior + Customer)
 
-    private func sceneView(customer: Customer) -> some View {
+    private func sceneView(customer: Customer, availableHeight: CGFloat, isCompact: Bool) -> some View {
         let shopLocation = gameState.activeShop?.locationType.rawValue ?? "neighborhood"
         let hasInterior  = UIImage(named: "interior_\(shopLocation)") != nil
         let hasCustomer  = !customer.photoKey.isEmpty && UIImage(named: customer.photoKey) != nil
+        let sceneHeight = min(max(availableHeight * (isCompact ? 0.36 : 0.40), isCompact ? 268 : 300), isCompact ? 320 : 380)
 
         return GeometryReader { geo in
             let W = geo.size.width
-            let leftW = W * 0.58   // sol panel genişliği
-            let rightW = W - leftW // müşteri alanı
+            let leftW = W * 0.56
+            let rightW = W - leftW
 
             ZStack(alignment: .topLeading) {
-
-                // Arka plan
-                Rectangle().fill(Color(red: 0.10, green: 0.08, blue: 0.04))
-                    .frame(width: W, height: 320)
+                RoundedRectangle(cornerRadius: GDLRadius.xxl)
+                    .fill(Color(red: 0.10, green: 0.08, blue: 0.04))
+                    .frame(width: W, height: sceneHeight)
 
                 if hasInterior {
                     Image("interior_\(shopLocation)")
                         .resizable()
                         .scaledToFill()
-                        .frame(width: W, height: 320)
+                        .frame(width: W, height: sceneHeight)
                         .clipped()
                 } else {
                     Image(systemName: "storefront")
                         .font(.system(size: 48))
                         .foregroundColor(.gdlGold.opacity(0.2))
-                        .frame(width: W, height: 320)
+                        .frame(width: W, height: sceneHeight)
                 }
 
-                // Sol gradient — okunabilirlik
                 LinearGradient(
-                    colors: [Color.black.opacity(0.78), Color.black.opacity(0.35), Color.clear],
-                    startPoint: .leading, endPoint: .trailing
+                    colors: [Color.black.opacity(0.82), Color.black.opacity(0.44), Color.clear],
+                    startPoint: .leading,
+                    endPoint: .trailing
                 )
-                .frame(width: W, height: 320)
+                .frame(width: W, height: sceneHeight)
 
-                // Müşteri görseli — sağa yapışık, alta hizalı
+                LinearGradient(
+                    colors: [Color.clear, Color.black.opacity(0.48)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(width: W, height: sceneHeight)
+
                 VStack(spacing: 0) {
                     Spacer()
                     if hasCustomer {
                         Image(customer.photoKey)
                             .resizable()
                             .scaledToFit()
-                            .frame(maxWidth: rightW - 4, maxHeight: 315, alignment: .bottom)
-                            .padding(.trailing, 20)
+                            .frame(maxWidth: rightW - 8, maxHeight: sceneHeight - 14, alignment: .bottom)
+                            .padding(.trailing, GDLSpacing.lg + GDLSpacing.xxxs)
                     } else {
                         Image(systemName: "person.fill")
                             .resizable()
                             .scaledToFit()
-                            .frame(height: 165)
+                            .frame(height: sceneHeight * 0.48)
                             .foregroundColor(.white.opacity(0.12))
                     }
                 }
-                .frame(width: rightW, height: 320)
+                .frame(width: rightW, height: sceneHeight)
                 .offset(x: leftW)
 
-                // Sol panel: timer + profil + diyalog + ürünler
                 VStack(alignment: .leading, spacing: 0) {
+                    timerSection(customer: customer)
+                        .padding(.horizontal, GDLSpacing.md)
+                        .padding(.top, GDLSpacing.md)
 
-                    // Timer bar
-                    VStack(spacing: 3) {
-                        TimerBar(progress: timeRemaining / Double(customer.patienceSeconds))
-                        HStack {
-                            Text("Müşteri sabrı")
-                                .font(.gdlCaption())
-                                .foregroundColor(.white.opacity(0.65))
-                            Spacer()
-                            Text("\(Int(timeRemaining))s")
-                                .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                                .foregroundColor(timeRemaining < 10 ? .gdlNegative : .white.opacity(0.65))
-                        }
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.top, 10)
-                    .padding(.bottom, 8)
-
-                    // Profil rozeti
-                    HStack(spacing: 8) {
+                    HStack(spacing: GDLSpacing.sm) {
                         ZStack {
                             Circle()
                                 .fill(customerTypeColor(customer).opacity(0.3))
-                                .frame(width: 36, height: 36)
+                                .frame(width: 42, height: 42)
                             if hasCustomer {
                                 Image(customer.photoKey)
                                     .resizable()
                                     .scaledToFill()
-                                    .frame(width: 36, height: 36)
+                                    .frame(width: 42, height: 42)
                                     .clipShape(Circle())
                             } else {
                                 Text(String(customer.name.prefix(1)))
-                                    .font(.system(size: 15, weight: .bold))
+                                    .font(.system(size: 16, weight: .bold))
                                     .foregroundColor(customerTypeColor(customer))
                             }
                         }
-                        VStack(alignment: .leading, spacing: 2) {
+
+                        VStack(alignment: .leading, spacing: GDLSpacing.xxxs) {
                             Text(customer.name)
-                                .font(.system(size: 16, weight: .semibold))
+                                .font(.system(size: 17, weight: .semibold, design: .rounded))
                                 .foregroundColor(.white)
                                 .lineLimit(1)
-                            Text("\(customer.customerType.displayName) · \(customer.age) yaş")
-                                .font(.system(size: 13))
-                                .foregroundColor(.white.opacity(0.6))
-                                .lineLimit(1)
+                            HStack(spacing: GDLSpacing.xs) {
+                                Text(customer.customerType.displayName)
+                                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                                    .foregroundColor(customerTypeColor(customer))
+                                Text("·")
+                                    .foregroundColor(.white.opacity(0.45))
+                                Text("\(customer.age) yaş")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.white.opacity(0.65))
+                            }
                         }
                     }
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 7)
-                    .background(Color.black.opacity(0.55))
-                    .cornerRadius(9)
-                    .padding(.horizontal, 10)
+                    .padding(.horizontal, GDLSpacing.sm)
+                    .padding(.vertical, GDLSpacing.sm)
+                    .background(Color.black.opacity(0.46))
+                    .clipShape(RoundedRectangle(cornerRadius: GDLRadius.md))
+                    .padding(.horizontal, GDLSpacing.md)
+                    .padding(.top, GDLSpacing.sm)
 
-                    // Diyalog
                     Text(isBargainPhase
                          ? "Daha iyi bir teklif bekliyorum, ustam."
                          : customer.dialogue)
-                        .font(.system(size: 14))
+                        .font(.system(size: 14, weight: .medium, design: .rounded))
                         .foregroundColor(.white)
                         .lineLimit(3)
                         .fixedSize(horizontal: false, vertical: true)
-                        .padding(9)
-                        .background(Color.black.opacity(0.6))
-                        .cornerRadius(9)
-                        .padding(.horizontal, 10)
-                        .padding(.top, 6)
+                        .padding(GDLSpacing.sm)
+                        .background(Color.black.opacity(0.52))
+                        .clipShape(RoundedRectangle(cornerRadius: GDLRadius.md))
+                        .padding(.horizontal, GDLSpacing.md)
+                        .padding(.top, GDLSpacing.sm)
 
-                    // Ürün listesi
-                    VStack(alignment: .leading, spacing: 6) {
+                    VStack(alignment: .leading, spacing: GDLSpacing.xs) {
                         ForEach(customer.request.items) { item in
-                            HStack(spacing: 5) {
+                            HStack(spacing: GDLSpacing.xs) {
                                 Image(systemName:
                                     customer.request.direction == .customerBuysFromPlayer
                                     ? "arrow.up.circle.fill" : "arrow.down.circle.fill")
@@ -326,7 +357,7 @@ struct CounterView: View {
                                     .foregroundColor(
                                         customer.request.direction == .customerBuysFromPlayer
                                         ? .gdlPositive : .orange)
-                                VStack(alignment: .leading, spacing: 2) {
+                                VStack(alignment: .leading, spacing: GDLSpacing.xxxs) {
                                     Text(item.label)
                                         .font(.system(size: 14, weight: .semibold))
                                         .foregroundColor(.white)
@@ -338,23 +369,29 @@ struct CounterView: View {
                                             .lineLimit(1)
                                     }
                                 }
+                                Spacer(minLength: 0)
                             }
                         }
                     }
-                    .padding(8)
-                    .background(Color.black.opacity(0.5))
-                    .cornerRadius(8)
-                    .padding(.horizontal, 10)
-                    .padding(.top, 6)
+                    .padding(GDLSpacing.sm)
+                    .background(Color.black.opacity(0.42))
+                    .clipShape(RoundedRectangle(cornerRadius: GDLRadius.md))
+                    .padding(.horizontal, GDLSpacing.md)
+                    .padding(.top, GDLSpacing.sm)
 
                     Spacer()
                 }
-                .padding(.leading, 8)
                 .frame(width: leftW)
             }
         }
-        .frame(height: 320)
+        .frame(height: sceneHeight)
         .clipped()
+        .clipShape(RoundedRectangle(cornerRadius: GDLRadius.xxl))
+        .overlay(
+            RoundedRectangle(cornerRadius: GDLRadius.xxl)
+                .stroke(Color.gdlStroke, lineWidth: 1)
+        )
+        .shadow(color: .gdlShadow, radius: 18, x: 0, y: 10)
     }
 
     private func customerTypeColor(_ customer: Customer) -> Color {
@@ -388,80 +425,94 @@ struct CounterView: View {
     // MARK: - Competitor Offers
 
     private func competitorOffersSection(customer: Customer) -> some View {
-        let base = gameState.calculateBaseValue(for: customer.request.items, direction: customer.request.direction)
-        _ = base  // used via competitorOffers state
-        return VStack(alignment: .leading, spacing: 10) {
-            Text("Aldığı Teklifler")
-                .font(.gdlCaption())
-                .foregroundColor(.gdlTextSecondary)
+        return VStack(alignment: .leading, spacing: 0) {
+            VStack(spacing: 0) {
+                ForEach(competitorOffers, id: \.name) { offer in
+                    HStack {
+                        Text(offer.name)
+                            .font(.gdlBody())
+                            .foregroundColor(.gdlTextPrimary)
+                        Spacer()
+                        Text(FormatUtils.tl(offer.price))
+                            .font(.gdlBody())
+                            .foregroundColor(.gdlGold)
+                    }
+                    .padding(.vertical, GDLSpacing.sm)
 
-            ForEach(competitorOffers, id: \.name) { offer in
-                HStack {
-                    Image(systemName: "building.2.fill")
-                        .font(.system(size: 11))
-                        .foregroundColor(.gdlTextSecondary)
-                    Text(offer.name)
-                        .font(.gdlBody())
-                        .foregroundColor(.gdlTextPrimary)
-                    Spacer()
-                    Text(FormatUtils.tl(offer.price))
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
-                        .foregroundColor(.gdlGold)
-                }
-                .padding(.vertical, 2)
-
-                if offer.name != competitorOffers.last?.name {
-                    Divider().background(Color.gdlDivider)
+                    if offer.name != competitorOffers.last?.name {
+                        Divider().background(Color.gdlDivider)
+                    }
                 }
             }
+            .padding(.horizontal, GDLSpacing.md)
+            .padding(.vertical, GDLSpacing.sm)
+            .background(Color.gdlCard)
+            .overlay(
+                RoundedRectangle(cornerRadius: GDLRadius.lg)
+                    .stroke(Color.gdlStroke, lineWidth: 1)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: GDLRadius.lg))
         }
-        .frame(maxWidth: .infinity)
-        .padding(14)
-        .background(Color.gdlBackground)
     }
 
     // MARK: - Keypad + Actions (combined compact block)
 
-    private func keypadSection(customer: Customer) -> some View {
-        VStack(spacing: 6) {
-            // Amount display
+    private func keypadSection(customer: Customer, isCompact: Bool) -> some View {
+        VStack(spacing: isCompact ? GDLSpacing.sm : GDLSpacing.md) {
             Text(offerInput.isEmpty ? "—" : FormatUtils.tl(Double(offerInput) ?? 0))
-                .font(.system(size: 26, weight: .bold, design: .rounded))
+                .font(.system(size: isCompact ? 23 : 26, weight: .bold, design: .rounded))
                 .foregroundColor(offerInput.isEmpty ? .gdlTextSecondary : .gdlGold)
                 .frame(maxWidth: .infinity, alignment: .center)
-                .padding(.vertical, 4)
 
             CompactNumericKeypad(input: $offerInput)
 
-            // Action buttons inline
-            HStack(spacing: 8) {
-                Button(action: handleReject) {
-                    Label("Reddet", systemImage: "xmark")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 11)
-                        .background(Color.gdlNegative)
-                        .cornerRadius(10)
+            let hasStock = gameState.hasEnoughStock(for: customer.request.items, direction: customer.request.direction)
+            HStack(spacing: 5) {
+                Button {
+                    handleReject()
+                } label: {
+                    HStack(spacing: GDLSpacing.xs) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 12, weight: .semibold))
+                        Text("Reddet")
+                            .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    }
+                    .foregroundColor(.gdlTextPrimary)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 40)
+                    .background(Color.gdlNegative)
+                    .clipShape(RoundedRectangle(cornerRadius: GDLSpacing.sm))
                 }
-                .frame(maxWidth: 120)
+                .buttonStyle(.plain)
+                .frame(maxWidth: .infinity)
 
-                let hasStock = gameState.hasEnoughStock(for: customer.request.items, direction: customer.request.direction)
-                Button(action: { handleOffer(customer: customer) }) {
-                    Label("Teklif Ver", systemImage: hasStock ? "checkmark" : "archivebox.fill")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(hasStock ? .white : .gdlTextSecondary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 11)
-                        .background(hasStock ? Color(red: 0.22, green: 0.60, blue: 0.35) : Color.gdlCardSecondary)
-                        .cornerRadius(10)
+                Button {
+                    handleOffer(customer: customer)
+                } label: {
+                    HStack(spacing: GDLSpacing.xs) {
+                        Image(systemName: hasStock ? "checkmark" : "archivebox.fill")
+                            .font(.system(size: 12, weight: .semibold))
+                        Text("Teklif Ver")
+                            .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    }
+                    .foregroundColor(hasStock ? .gdlTextPrimary : .gdlTextSecondary)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 40)
+                    .background(hasStock ? Color.gdlPositive : Color.gdlCardSecondary)
+                    .clipShape(RoundedRectangle(cornerRadius: GDLSpacing.sm))
                 }
+                .buttonStyle(.plain)
+                .frame(maxWidth: .infinity)
                 .disabled(!hasStock)
             }
         }
-        .frame(maxWidth: .infinity)
-        .padding(12)
-        .background(Color.gdlBackground)
+        .padding(GDLSpacing.md)
+        .background(Color.gdlCard)
+        .overlay(
+            RoundedRectangle(cornerRadius: GDLRadius.lg)
+                .stroke(Color.gdlStroke, lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: GDLRadius.lg))
     }
 
     // MARK: - Empty Queue
@@ -479,6 +530,7 @@ struct CounterView: View {
             Spacer()
         }
         .frame(maxWidth: .infinity)
+        .padding(.horizontal, 24)
     }
 
     // MARK: - Result Overlay
@@ -668,12 +720,6 @@ struct CounterView: View {
             let rounded  = (rawPrice / 100).rounded() * 100
             return (name: name, price: rounded)
         }
-    }
-
-    private var satisfactionColor: Color {
-        if gameState.customerSatisfaction >= 70 { return .gdlPositive }
-        if gameState.customerSatisfaction >= 40 { return .orange }
-        return .gdlNegative
     }
 }
 

@@ -10,14 +10,13 @@ class GameSaveService {
     static func save(_ state: GameState) {
         let dict: [String: Any] = [
             "playerCash":                  state.playerCash,
-            "inventoryTRY":                state.inventory.tryCash,
             "inventoryUSD":                state.inventory.usd,
             "inventoryEUR":                state.inventory.eur,
             "inventoryGram":               state.inventory.gramGold,
             "inventoryQuarter":            state.inventory.quarterGold,
             "inventoryHalf":               state.inventory.halfGold,
             "inventoryFull":               state.inventory.fullGold,
-            "customerSatisfaction":        state.customerSatisfaction,
+            "entryRightsRemaining":        state.entryRightsRemaining,
             "totalProfit":                 state.totalProfit,
             "dailyProfit":                 state.dailyProfit,
             "weeklyProfit":                state.weeklyProfit,
@@ -29,11 +28,11 @@ class GameSaveService {
             "acceptedDeals":               state.acceptedDeals,
             "rejectedDeals":               state.rejectedDeals,
             "yesterdayCash":               state.yesterdayCash,
-            "trustScore":                  state.trustScore,
             "shopName":                    state.shopName,
-            // Owned shop names (simplified – match by name on load)
+            "ownedShopKeys":               state.ownedShops.map { $0.key },
             "ownedShopNames":              state.ownedShops.map { $0.name },
-            "ownedShopEmployeeCounts":      Dictionary(uniqueKeysWithValues: state.ownedShops.map { ($0.name, $0.employeeCount) }),
+            "ownedShopEmployeeCounts":     Dictionary(uniqueKeysWithValues: state.ownedShops.map { ($0.key, $0.employeeCount) }),
+            "activeShopKey":               state.activeShopKey ?? "",
             // Rates cache
             "ratesBuyPrices":              Dictionary(uniqueKeysWithValues: state.rates.map { ($0.type, $0.buyPrice) }),
             "ratesSellPrices":             Dictionary(uniqueKeysWithValues: state.rates.map { ($0.type, $0.sellPrice) }),
@@ -44,6 +43,7 @@ class GameSaveService {
             // Daily reward (yerel yedek — Supabase yetersiz kalırsa devreye girer)
             "dailyRewardDay":               state.dailyRewardDay,
             "dailyRewardClaimedAt":         state.dailyRewardClaimedAt?.timeIntervalSince1970 ?? -1,
+            "entryRightsRefreshedAt":       state.entryRightsRefreshedAt?.timeIntervalSince1970 ?? -1,
         ]
         UserDefaults.standard.set(dict, forKey: key)
     }
@@ -51,15 +51,15 @@ class GameSaveService {
     static func load(into state: GameState) {
         guard let dict = UserDefaults.standard.dictionary(forKey: key) else { return }
 
-        state.playerCash                  = dict["playerCash"]                  as? Double ?? state.playerCash
-        state.inventory.tryCash           = dict["inventoryTRY"]                as? Double ?? state.inventory.tryCash
+        let legacyInventoryCash = dict["inventoryTRY"] as? Double
+        state.playerCash                  = dict["playerCash"]                  as? Double ?? legacyInventoryCash ?? state.playerCash
         state.inventory.usd               = dict["inventoryUSD"]                as? Double ?? state.inventory.usd
         state.inventory.eur               = dict["inventoryEUR"]                as? Double ?? state.inventory.eur
         state.inventory.gramGold          = dict["inventoryGram"]               as? Double ?? state.inventory.gramGold
         state.inventory.quarterGold       = dict["inventoryQuarter"]            as? Double ?? state.inventory.quarterGold
         state.inventory.halfGold          = dict["inventoryHalf"]               as? Double ?? state.inventory.halfGold
         state.inventory.fullGold          = dict["inventoryFull"]               as? Double ?? state.inventory.fullGold
-        state.customerSatisfaction        = dict["customerSatisfaction"]        as? Int    ?? state.customerSatisfaction
+        state.entryRightsRemaining        = dict["entryRightsRemaining"]        as? Int    ?? state.entryRightsRemaining
         state.totalProfit                 = dict["totalProfit"]                 as? Double ?? state.totalProfit
         state.dailyProfit                 = dict["dailyProfit"]                 as? Double ?? state.dailyProfit
         state.weeklyProfit                = dict["weeklyProfit"]                as? Double ?? state.weeklyProfit
@@ -73,7 +73,6 @@ class GameSaveService {
         state.acceptedDeals               = dict["acceptedDeals"]               as? Int    ?? state.acceptedDeals
         state.rejectedDeals               = dict["rejectedDeals"]               as? Int    ?? state.rejectedDeals
         state.yesterdayCash               = dict["yesterdayCash"]               as? Double ?? state.yesterdayCash
-        state.trustScore                  = dict["trustScore"]                  as? Double ?? state.trustScore
         state.shopName                    = dict["shopName"]                    as? String ?? state.shopName
 
         // Restore cached rates (overwrites kayıtlı values if available)
@@ -93,17 +92,27 @@ class GameSaveService {
         }
 
         // Restore owned shops
-        if let ownedNames = dict["ownedShopNames"] as? [String] {
+        if let ownedKeys = dict["ownedShopKeys"] as? [String] {
             let allShops = GameSeedData.allShops
             let employeeCounts = dict["ownedShopEmployeeCounts"] as? [String: Int] ?? [:]
-            state.ownedShops  = allShops.filter { ownedNames.contains($0.name) }.map {
+            state.ownedShops  = allShops.filter { ownedKeys.contains($0.key) }.map {
                 var s = $0
                 s.isOwned = true
-                s.employeeCount = employeeCounts[s.name] ?? s.employeeCount
+                s.employeeCount = employeeCounts[s.key] ?? s.employeeCount
+                return s
+            }
+            state.lockedShops = allShops.filter { !ownedKeys.contains($0.key) }
+            let activeShopKey = dict["activeShopKey"] as? String
+            state.activeShop = state.ownedShops.first(where: { $0.key == activeShopKey }) ?? state.ownedShops.first
+        } else if let ownedNames = dict["ownedShopNames"] as? [String] {
+            let allShops = GameSeedData.allShops
+            state.ownedShops = allShops.filter { ownedNames.contains($0.name) }.map {
+                var s = $0
+                s.isOwned = true
                 return s
             }
             state.lockedShops = allShops.filter { !ownedNames.contains($0.name) }
-            state.activeShop  = state.ownedShops.first
+            state.activeShop = state.ownedShops.first
         }
 
         // Restore owned lifestyle items
@@ -123,24 +132,15 @@ class GameSaveService {
            let savedTs = dict["dailyRewardClaimedAt"] as? Double, savedTs > 0 {
             state.dailyRewardClaimedAt = Date(timeIntervalSince1970: savedTs)
         }
+        if state.entryRightsRefreshedAt == nil,
+           let savedTs = dict["entryRightsRefreshedAt"] as? Double, savedTs > 0 {
+            state.entryRightsRefreshedAt = Date(timeIntervalSince1970: savedTs)
+        }
+        state.syncEntryRightsIfNeeded()
     }
 
     static func reset() {
         UserDefaults.standard.removeObject(forKey: key)
     }
 
-    /// Oyun günü 08:00 İstanbul saatinde başlar. İki tarihin aynı oyun gününe ait olup olmadığını kontrol eder.
-    private static func isSameGameDay(_ d1: Date, _ d2: Date) -> Bool {
-        var cal = Calendar(identifier: .gregorian)
-        cal.timeZone = TimeZone(identifier: "Europe/Istanbul")!
-
-        func gameDayStart(for date: Date) -> Date {
-            var comps = cal.dateComponents([.year, .month, .day], from: date)
-            comps.hour = 8; comps.minute = 0; comps.second = 0
-            let dayStart = cal.date(from: comps)!
-            return date < dayStart ? cal.date(byAdding: .day, value: -1, to: dayStart)! : dayStart
-        }
-
-        return gameDayStart(for: d1) == gameDayStart(for: d2)
-    }
 }

@@ -9,36 +9,7 @@ struct LifestyleView: View {
 
     var body: some View {
         ZStack {
-            Color.gdlBackground.ignoresSafeArea()
-
             VStack(spacing: 0) {
-                // Başlık + Puan satırı
-                HStack(alignment: .center) {
-                    Text("Yaşam Tarzı")
-                        .font(.largeTitle)
-                        .fontWeight(.bold)
-                        .foregroundColor(.primary)
-                    Spacer()
-                    HStack(spacing: 5) {
-                        Image(systemName: "star.fill")
-                            .font(.subheadline)
-                            .foregroundColor(.gdlGold)
-                        Text("\(gameState.lifestyleScore)")
-                            .font(.system(size: 15, weight: .bold, design: .rounded))
-                            .foregroundColor(.gdlGold)
-                        Text("puan")
-                            .font(.system(size: 12))
-                            .foregroundColor(.gdlTextSecondary)
-                    }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(Color.gdlCard)
-                    .cornerRadius(10)
-                }
-                .padding(.horizontal)
-                .padding(.top, 52)
-                .padding(.bottom, 4)
-
                 // Kategori seçici
                 categoryPicker
 
@@ -62,8 +33,9 @@ struct LifestyleView: View {
                 .id(selectedCategory)
             }
         }
+        .gdlScreenBackground()
         .navigationBarTitleDisplayMode(.inline)
-        .navigationTitle("")
+        .navigationTitle("Yaşam Tarzı")
         .alert("Hayırlı Olsun! 🎉", isPresented: $showCongrats) {
             Button("Teşekkürler", role: .cancel) {}
         } message: {
@@ -101,6 +73,7 @@ struct LifestyleView: View {
             .padding(.horizontal)
             .padding(.vertical, 8)
         }
+        .background(Color.clear)
     }
 
     // MARK: - Filtered Items
@@ -166,24 +139,10 @@ struct LifestyleItemCard: View {
 
             // Satın al / Alındı butonu
             if item.isOwned {
-                HStack(spacing: 4) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(.gdlPositive)
-                    Text("Alındı")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(.gdlPositive)
-                }
+                StatusBadge(title: "Alındı", icon: "checkmark.circle.fill", color: .gdlPositive)
             } else {
-                Button {
+                CompactActionButton(title: "Satın Al", style: .gold, isDisabled: !canAfford) {
                     onBuy()
-                } label: {
-                    Text("Satın Al")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(canAfford ? .black : .gdlTextSecondary)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 7)
-                        .background(canAfford ? Color.gdlGold : Color.gdlCardSecondary)
-                        .cornerRadius(8)
                 }
                 .disabled(!canAfford)
             }

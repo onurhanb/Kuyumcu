@@ -470,28 +470,42 @@ enum CustomerLibrary {
 
     // MARK: - Profile Weights by Location
 
-    private static func typeWeights(for loc: ShopLocationType) -> [CustomerType: Double] {
+    private static func typeWeights(
+        for loc: ShopLocationType,
+        vipModifier: Double = 1.0
+    ) -> [CustomerType: Double] {
+        var weights: [CustomerType: Double]
         switch loc {
         case .neighborhood:
-            return [.regular: 4, .frugal: 3, .generous: 1, .urgent: 2, .tourist: 0, .vip: 0]
+            weights = [.regular: 4, .frugal: 3, .generous: 1, .urgent: 2, .tourist: 0, .vip: 0]
         case .bazaar:
-            return [.regular: 3, .frugal: 2, .generous: 2, .urgent: 2, .tourist: 1, .vip: 0]
+            weights = [.regular: 3, .frugal: 2, .generous: 2, .urgent: 2, .tourist: 1, .vip: 0]
         case .districtBazaar:
-            return [.regular: 3, .frugal: 2, .generous: 2, .urgent: 2, .tourist: 1, .vip: 1]
+            weights = [.regular: 3, .frugal: 2, .generous: 2, .urgent: 2, .tourist: 1, .vip: 1]
         case .cityCenter:
-            return [.regular: 2, .frugal: 1, .generous: 2, .urgent: 2, .tourist: 2, .vip: 1]
+            weights = [.regular: 2, .frugal: 1, .generous: 2, .urgent: 2, .tourist: 2, .vip: 1]
         case .mall:
-            return [.regular: 2, .frugal: 1, .generous: 2, .urgent: 1, .tourist: 3, .vip: 2]
+            weights = [.regular: 2, .frugal: 1, .generous: 2, .urgent: 1, .tourist: 3, .vip: 2]
         case .grandBazaar:
-            return [.regular: 1, .frugal: 1, .generous: 2, .urgent: 1, .tourist: 2, .vip: 4]
+            weights = [.regular: 1, .frugal: 1, .generous: 2, .urgent: 1, .tourist: 2, .vip: 4]
         }
+
+        let clampedVIPModifier = max(0.5, min(vipModifier, 2.5))
+        if let vipWeight = weights[.vip], vipWeight > 0 {
+            weights[.vip] = vipWeight * clampedVIPModifier
+        }
+
+        return weights
     }
 
     // MARK: - Generate Customer
 
-    static func generateCustomer(for locationType: ShopLocationType) -> Customer {
+    static func generateCustomer(
+        for locationType: ShopLocationType,
+        vipModifier: Double = 1.0
+    ) -> Customer {
         // 1. Tipe göre profil seç
-        let weights    = typeWeights(for: locationType)
+        let weights    = typeWeights(for: locationType, vipModifier: vipModifier)
         let pickedType = weightedRandomType(weights)
 
         // 2. Eşleşen profili seç

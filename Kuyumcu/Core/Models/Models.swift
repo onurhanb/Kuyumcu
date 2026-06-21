@@ -65,7 +65,6 @@ struct Rate: Identifiable, Codable {
 // MARK: - Inventory
 
 struct Inventory: Codable {
-    var tryCash: Double
     var usd: Double
     var eur: Double
     var gramGold: Double
@@ -144,6 +143,7 @@ enum ShopLocationType: String, Codable, CaseIterable {
 
 struct Shop: Identifiable, Codable, Equatable {
     var id: UUID
+    var key: String
     var name: String
     var description: String
     var locationType: ShopLocationType
@@ -155,7 +155,7 @@ struct Shop: Identifiable, Codable, Equatable {
     var employeeCount: Int
     var isOwned: Bool
 
-    static func == (lhs: Shop, rhs: Shop) -> Bool { lhs.id == rhs.id }
+    static func == (lhs: Shop, rhs: Shop) -> Bool { lhs.key == rhs.key }
 }
 
 // MARK: - Customer

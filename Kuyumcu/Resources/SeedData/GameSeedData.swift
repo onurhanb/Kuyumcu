@@ -14,7 +14,7 @@ struct GameSeedData {
     ]}
 
     static var initialInventory: Inventory {
-        Inventory(tryCash: 1_000_000, usd: 10_000, eur: 10_000,
+        Inventory(usd: 10_000, eur: 10_000,
                   gramGold: 150, quarterGold: 100, halfGold: 50, fullGold: 10)
     }
 
@@ -92,48 +92,53 @@ struct GameSeedData {
     // MARK: - Shops
 
     static var allShops: [Shop] {[
-        Shop(id: UUID(), name: "Mahalle Kuyumcusu",
+        Shop(id: UUID(), key: "neighborhood_shop", name: "Mahalle Kuyumcusu",
              description: "Sıradan bir başlangıç.",
              locationType: .neighborhood, level: 1,
              purchasePrice: 0,
              customerTrafficMultiplier: 1.0,
              vipChance: 0.05, employeeCapacity: 2, employeeCount: 0, isOwned: true),
 
-        Shop(id: UUID(), name: "Çarşı Kuyumcusu",
+        Shop(id: UUID(), key: "bazaar_shop", name: "Çarşı Kuyumcusu",
              description: "Alışverişin tam kalbinde.",
              locationType: .bazaar, level: 1,
              purchasePrice: 2_000_000,
              customerTrafficMultiplier: 1.5,
              vipChance: 0.10, employeeCapacity: 4, employeeCount: 0, isOwned: false),
 
-        Shop(id: UUID(), name: "İlçe Kuyumcusu",
+        Shop(id: UUID(), key: "district_bazaar_shop", name: "İlçe Kuyumcusu",
              description: "İlçenin güvenilir kuyumcusu.",
              locationType: .districtBazaar, level: 1,
              purchasePrice: 4_000_000,
              customerTrafficMultiplier: 2.0,
              vipChance: 0.15, employeeCapacity: 6, employeeCount: 0, isOwned: false),
 
-        Shop(id: UUID(), name: "Şehir Merkezi Kuyumcusu",
+        Shop(id: UUID(), key: "city_center_shop", name: "Şehir Merkezi Kuyumcusu",
              description: "Büyük adımlar, büyük kazançlar.",
              locationType: .cityCenter, level: 1,
              purchasePrice: 10_000_000,
              customerTrafficMultiplier: 2.5,
              vipChance: 0.20, employeeCapacity: 8, employeeCount: 0, isOwned: false),
 
-        Shop(id: UUID(), name: "AVM Kuyumcusu",
+        Shop(id: UUID(), key: "mall_shop", name: "AVM Kuyumcusu",
              description: "Prestijin yeni adresi.",
              locationType: .mall, level: 1,
              purchasePrice: 15_000_000,
              customerTrafficMultiplier: 3.0,
              vipChance: 0.25, employeeCapacity: 10, employeeCount: 0, isOwned: false),
 
-        Shop(id: UUID(), name: "Kapalıçarşı Kuyumcusu",
+        Shop(id: UUID(), key: "grand_bazaar_shop", name: "Kapalıçarşı Kuyumcusu",
              description: "Bu işin merkezi.",
              locationType: .grandBazaar, level: 1,
              purchasePrice: 50_000_000,
              customerTrafficMultiplier: 5.0,
              vipChance: 0.30, employeeCapacity: 12, employeeCount: 0, isOwned: false),
     ]}
+
+    static func shop(forKey key: String?) -> Shop? {
+        guard let key else { return nil }
+        return allShops.first(where: { $0.key == key })
+    }
 
     // MARK: - Events
 

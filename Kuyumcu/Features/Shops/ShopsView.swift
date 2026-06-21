@@ -8,16 +8,16 @@ struct ShopsView: View {
 
     var body: some View {
         ZStack {
-            Color.gdlBackground.ignoresSafeArea()
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 14) {
                     // Owned shops
                     if !gameState.ownedShops.isEmpty {
                         VStack(alignment: .leading, spacing: 10) {
-                            Text("Sahip Olduklarım")
-                                .font(.gdlHeadline())
-                                .foregroundColor(.gdlGold)
-                                .padding(.horizontal)
+                            SectionHeaderRow(
+                                title: "Sahip Olduklarım",
+                                detail: "\(gameState.ownedShops.count) dükkan",
+                                color: .gdlGold
+                            )
 
                             ForEach(gameState.ownedShops) { shop in
                                 ShopCard(shop: shop, playerCash: gameState.playerCash, onHire: {
@@ -32,10 +32,10 @@ struct ShopsView: View {
                     // Locked shops
                     if !gameState.lockedShops.isEmpty {
                         VStack(alignment: .leading, spacing: 10) {
-                            Text("Satın Alınabilir")
-                                .font(.gdlHeadline())
-                                .foregroundColor(.gdlTextSecondary)
-                                .padding(.horizontal)
+                            SectionHeaderRow(
+                                title: "Satın Alınabilir",
+                                detail: "\(gameState.lockedShops.count) seçenek"
+                            )
 
                             ForEach(gameState.lockedShops) { shop in
                                 ShopCard(shop: shop, playerCash: gameState.playerCash, onBuy: {
@@ -49,9 +49,10 @@ struct ShopsView: View {
 
                     Spacer(minLength: 80)
                 }
-                .padding(.top, 8)
+                .padding(.top, 12)
             }
         }
+        .gdlScreenBackground()
         .navigationTitle("Dükkanlar")
         .navigationBarTitleDisplayMode(.large)
         .confirmationDialog(
@@ -89,7 +90,7 @@ struct ShopsView: View {
                     if gameState.playerCash >= shop.locationType.employeeHireCost {
                         audioManager.playEffect(.purchase)
                     }
-                    gameState.hireEmployee(shopId: shop.id)
+                    gameState.hireEmployee(shopName: shop.name)
                 }
                 confirmHire = nil
             }
@@ -106,6 +107,7 @@ struct ShopsView: View {
             }
         }
     }
+
 }
 
 #Preview {
