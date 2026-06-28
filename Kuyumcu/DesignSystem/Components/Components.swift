@@ -49,7 +49,7 @@ struct GoldButton: View {
             .frame(maxWidth: .infinity)
             .padding(.vertical, 14)
             .background(bg)
-            .cornerRadius(12)
+            .clipShape(RoundedRectangle(cornerRadius: GDLRadius.sm))
         }
         .disabled(isDisabled)
     }
@@ -60,6 +60,7 @@ struct GoldButton: View {
 struct CompactActionButton: View {
     enum Style {
         case gold
+        case goldGradient
         case positive
         case negative
         case muted
@@ -73,20 +74,48 @@ struct CompactActionButton: View {
     var minWidth: CGFloat? = nil
     let action: () -> Void
 
-    private var backgroundColor: Color {
-        if isDisabled { return .gdlCardSecondary }
+    @ViewBuilder
+    private var backgroundView: some View {
+        if isDisabled {
+            Color.gdlCardSecondary
+        } else {
+            switch style {
+            case .gold:
+                Color.gdlGold
+            case .goldGradient:
+                LinearGradient.gdlGoldButton
+            case .positive:
+                Color.gdlPositive
+            case .negative:
+                Color.gdlNegative
+            case .muted:
+                Color.gdlCardSecondary
+            }
+        }
+    }
+
+    private var overlayStroke: Color {
         switch style {
-        case .gold: return .gdlGold
-        case .positive: return .gdlPositive
-        case .negative: return .gdlNegative
-        case .muted: return .gdlCardSecondary
+        case .goldGradient where !isDisabled:
+            return Color.white.opacity(0.18)
+        default:
+            return .clear
+        }
+    }
+
+    private var overlayLineWidth: CGFloat {
+        switch style {
+        case .goldGradient where !isDisabled:
+            return 1
+        default:
+            return 0
         }
     }
 
     private var foregroundColor: Color {
         if isDisabled { return .gdlTextSecondary }
         switch style {
-        case .gold: return .black
+        case .gold, .goldGradient: return .black
         case .positive, .negative, .muted: return .gdlTextPrimary
         }
     }
@@ -111,8 +140,12 @@ struct CompactActionButton: View {
             .frame(minWidth: minWidth)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            .background(backgroundColor)
-            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .background(backgroundView)
+            .overlay(
+                RoundedRectangle(cornerRadius: GDLRadius.sm)
+                    .stroke(overlayStroke, lineWidth: overlayLineWidth)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: GDLRadius.sm))
         }
         .buttonStyle(.plain)
         .disabled(isDisabled)
@@ -139,7 +172,7 @@ struct StatusBadge: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 7)
         .background(color.opacity(0.12))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .clipShape(RoundedRectangle(cornerRadius: GDLRadius.sm))
     }
 }
 
@@ -161,8 +194,7 @@ struct StatPill: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .background(Color.gdlCard)
-        .cornerRadius(10)
+        .gdlCard(radius: GDLRadius.sm)
     }
 }
 

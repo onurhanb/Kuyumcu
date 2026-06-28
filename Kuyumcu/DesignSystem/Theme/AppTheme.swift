@@ -15,7 +15,6 @@ enum GDLRadius {
     static let sm: CGFloat = 10
     static let md: CGFloat = 12
     static let lg: CGFloat = 16
-    static let xl: CGFloat = 18
     static let xxl: CGFloat = 24
 }
 
@@ -38,6 +37,33 @@ extension Color {
     static let gdlShadow        = Color.black.opacity(0.24)
 }
 
+extension LinearGradient {
+    static let gdlGoldButton = LinearGradient(
+        colors: [
+            Color.gdlGoldLight,
+            Color.gdlGold,
+            Color(red: 0.78, green: 0.58, blue: 0.12),
+            Color.white.opacity(0.92)
+        ],
+        startPoint: .topLeading,
+        endPoint: .bottomTrailing
+    )
+}
+
+extension AngularGradient {
+    static let gdlGoldRing = AngularGradient(
+        gradient: Gradient(colors: [
+            Color.white.opacity(0.95),
+            Color.gdlGoldLight,
+            Color.gdlGold,
+            Color(red: 0.78, green: 0.58, blue: 0.12),
+            Color.gdlGoldLight,
+            Color.white.opacity(0.95)
+        ]),
+        center: .center
+    )
+}
+
 // MARK: - Typography helpers
 
 extension Font {
@@ -51,20 +77,29 @@ extension Font {
 // MARK: - View modifiers
 
 struct GDLCardModifier: ViewModifier {
+    let radius: CGFloat
+
     func body(content: Content) -> some View {
         content
             .background(Color.gdlCard)
             .overlay(
-                RoundedRectangle(cornerRadius: GDLRadius.xl)
+                RoundedRectangle(cornerRadius: radius)
                     .stroke(Color.gdlStroke, lineWidth: 1)
             )
-            .clipShape(RoundedRectangle(cornerRadius: GDLRadius.xl))
+            .clipShape(RoundedRectangle(cornerRadius: radius))
             .shadow(color: .gdlShadow, radius: 14, x: 0, y: 6)
     }
 }
 
 extension View {
-    func gdlCard() -> some View { modifier(GDLCardModifier()) }
+    func gdlCard(radius: CGFloat = GDLRadius.lg) -> some View {
+        modifier(GDLCardModifier(radius: radius))
+    }
+
+    func gdlSecondarySurface(radius: CGFloat = GDLRadius.md) -> some View {
+        background(Color.gdlCardSecondary)
+            .clipShape(RoundedRectangle(cornerRadius: radius))
+    }
 
     func gdlScreenBackground() -> some View {
         background(

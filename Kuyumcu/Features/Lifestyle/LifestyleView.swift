@@ -65,7 +65,7 @@ struct LifestyleView: View {
                         .padding(.horizontal, 14)
                         .padding(.vertical, 8)
                         .background(selectedCategory == cat ? Color.gdlGold : Color.gdlCard)
-                        .cornerRadius(20)
+                        .clipShape(Capsule())
                         .animation(.easeInOut(duration: 0.18), value: selectedCategory)
                     }
                 }
@@ -148,8 +148,7 @@ struct LifestyleItemCard: View {
             }
         }
         .padding(14)
-        .background(Color.gdlCard)
-        .cornerRadius(14)
+        .gdlCard(radius: GDLRadius.lg)
         .opacity(item.isOwned ? 0.7 : 1.0)
     }
 

@@ -17,6 +17,7 @@ class GameSaveService {
             "inventoryHalf":               state.inventory.halfGold,
             "inventoryFull":               state.inventory.fullGold,
             "entryRightsRemaining":        state.entryRightsRemaining,
+            "spinRightsRemaining":         state.spinRightsRemaining,
             "totalProfit":                 state.totalProfit,
             "dailyProfit":                 state.dailyProfit,
             "weeklyProfit":                state.weeklyProfit,
@@ -44,6 +45,7 @@ class GameSaveService {
             "dailyRewardDay":               state.dailyRewardDay,
             "dailyRewardClaimedAt":         state.dailyRewardClaimedAt?.timeIntervalSince1970 ?? -1,
             "entryRightsRefreshedAt":       state.entryRightsRefreshedAt?.timeIntervalSince1970 ?? -1,
+            "profitDayAnchorAt":            state.profitDayAnchorAt?.timeIntervalSince1970 ?? -1,
         ]
         UserDefaults.standard.set(dict, forKey: key)
     }
@@ -60,6 +62,7 @@ class GameSaveService {
         state.inventory.halfGold          = dict["inventoryHalf"]               as? Double ?? state.inventory.halfGold
         state.inventory.fullGold          = dict["inventoryFull"]               as? Double ?? state.inventory.fullGold
         state.entryRightsRemaining        = dict["entryRightsRemaining"]        as? Int    ?? state.entryRightsRemaining
+        state.spinRightsRemaining         = dict["spinRightsRemaining"]         as? Int    ?? state.spinRightsRemaining
         state.totalProfit                 = dict["totalProfit"]                 as? Double ?? state.totalProfit
         state.dailyProfit                 = dict["dailyProfit"]                 as? Double ?? state.dailyProfit
         state.weeklyProfit                = dict["weeklyProfit"]                as? Double ?? state.weeklyProfit
@@ -136,7 +139,12 @@ class GameSaveService {
            let savedTs = dict["entryRightsRefreshedAt"] as? Double, savedTs > 0 {
             state.entryRightsRefreshedAt = Date(timeIntervalSince1970: savedTs)
         }
+        if state.profitDayAnchorAt == nil,
+           let savedTs = dict["profitDayAnchorAt"] as? Double, savedTs > 0 {
+            state.profitDayAnchorAt = Date(timeIntervalSince1970: savedTs)
+        }
         state.syncEntryRightsIfNeeded()
+        state.syncProfitPeriodsIfNeeded()
     }
 
     static func reset() {

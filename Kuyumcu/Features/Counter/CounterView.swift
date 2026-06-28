@@ -210,17 +210,30 @@ struct CounterView: View {
     // MARK: - Timer
 
     private func timerSection(customer: Customer) -> some View {
-        VStack(spacing: GDLSpacing.xxs) {
-            TimerBar(progress: timeRemaining / Double(customer.patienceSeconds))
-            HStack {
-                Text("Müşteri sabrı")
-                    .font(.gdlCaption()).foregroundColor(.white.opacity(0.65))
-                Spacer()
-                Text("\(Int(timeRemaining))s")
-                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                    .foregroundColor(timeRemaining < 10 ? .gdlNegative : .white.opacity(0.72))
-            }
+        let progress = max(0, min(1, timeRemaining / Double(customer.patienceSeconds)))
+
+        return VStack(alignment: .center, spacing: GDLSpacing.xxxs) {
+            Text("Müşteri Sabrı")
+                .font(.system(size: 9, weight: .medium, design: .rounded))
+                .foregroundColor(.white.opacity(0.72))
+            Image(systemName: "clock.fill")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(patienceColor(for: progress))
+            Text("\(Int(timeRemaining))s")
+                .font(.system(size: 12, weight: .bold, design: .monospaced))
+                .foregroundColor(patienceColor(for: progress))
         }
+        .frame(width: 80)
+        .padding(.horizontal, GDLSpacing.xxs)
+        .padding(.vertical, GDLSpacing.xs)
+        .background(Color.black.opacity(0.38))
+        .clipShape(RoundedRectangle(cornerRadius: GDLRadius.md))
+    }
+
+    private func patienceColor(for progress: Double) -> Color {
+        if progress > 0.5 { return .gdlPositive }
+        if progress > 0.25 { return .orange }
+        return .gdlNegative
     }
 
     // MARK: - Scene View (Interior + Customer)
@@ -287,52 +300,62 @@ struct CounterView: View {
                 .frame(width: rightW, height: sceneHeight)
                 .offset(x: leftW)
 
-                VStack(alignment: .leading, spacing: 0) {
-                    timerSection(customer: customer)
-                        .padding(.horizontal, GDLSpacing.md)
-                        .padding(.top, GDLSpacing.md)
-
-                    HStack(spacing: GDLSpacing.sm) {
-                        ZStack {
-                            Circle()
-                                .fill(customerTypeColor(customer).opacity(0.3))
-                                .frame(width: 42, height: 42)
-                            if hasCustomer {
-                                Image(customer.photoKey)
-                                    .resizable()
-                                    .scaledToFill()
-                                    .frame(width: 42, height: 42)
-                                    .clipShape(Circle())
-                            } else {
-                                Text(String(customer.name.prefix(1)))
-                                    .font(.system(size: 16, weight: .bold))
-                                    .foregroundColor(customerTypeColor(customer))
-                            }
-                        }
-
-                        VStack(alignment: .leading, spacing: GDLSpacing.xxxs) {
-                            Text(customer.name)
-                                .font(.system(size: 17, weight: .semibold, design: .rounded))
-                                .foregroundColor(.white)
-                                .lineLimit(1)
-                            HStack(spacing: GDLSpacing.xs) {
-                                Text(customer.customerType.displayName)
-                                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                                    .foregroundColor(customerTypeColor(customer))
-                                Text("·")
-                                    .foregroundColor(.white.opacity(0.45))
-                                Text("\(customer.age) yaş")
-                                    .font(.system(size: 12))
-                                    .foregroundColor(.white.opacity(0.65))
-                            }
-                        }
+                VStack {
+                    HStack {
+                        Spacer()
+                        timerSection(customer: customer)
                     }
-                    .padding(.horizontal, GDLSpacing.sm)
-                    .padding(.vertical, GDLSpacing.sm)
-                    .background(Color.black.opacity(0.46))
-                    .clipShape(RoundedRectangle(cornerRadius: GDLRadius.md))
+                    .padding(.top, GDLSpacing.md)
+                    .padding(.trailing, GDLSpacing.md)
+                    Spacer()
+                }
+                .frame(width: W, height: sceneHeight)
+
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(alignment: .top, spacing: GDLSpacing.sm) {
+                        HStack(spacing: GDLSpacing.sm) {
+                            ZStack {
+                                Circle()
+                                    .fill(customerTypeColor(customer).opacity(0.3))
+                                    .frame(width: 42, height: 42)
+                                if hasCustomer {
+                                    Image(customer.photoKey)
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: 42, height: 42)
+                                        .clipShape(Circle())
+                                } else {
+                                    Text(String(customer.name.prefix(1)))
+                                        .font(.system(size: 16, weight: .bold))
+                                        .foregroundColor(customerTypeColor(customer))
+                                }
+                            }
+
+                            VStack(alignment: .leading, spacing: GDLSpacing.xxxs) {
+                                Text(customer.name)
+                                    .font(.system(size: 17, weight: .semibold, design: .rounded))
+                                    .foregroundColor(.white)
+                                    .lineLimit(1)
+                                HStack(spacing: GDLSpacing.xs) {
+                                    Text(customer.customerType.displayName)
+                                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                                        .foregroundColor(customerTypeColor(customer))
+                                    Text("·")
+                                        .foregroundColor(.white.opacity(0.45))
+                                    Text("\(customer.age) yaş")
+                                        .font(.system(size: 12))
+                                        .foregroundColor(.white.opacity(0.65))
+                                }
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, GDLSpacing.sm)
+                        .padding(.vertical, GDLSpacing.sm)
+                        .background(Color.black.opacity(0.46))
+                        .clipShape(RoundedRectangle(cornerRadius: GDLRadius.md))
+                    }
                     .padding(.horizontal, GDLSpacing.md)
-                    .padding(.top, GDLSpacing.sm)
+                    .padding(.top, GDLSpacing.md)
 
                     Text(isBargainPhase
                          ? "Daha iyi bir teklif bekliyorum, ustam."

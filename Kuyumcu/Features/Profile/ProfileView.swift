@@ -45,11 +45,7 @@ struct ProfileView: View {
                     lifestyleCard
                         .padding(.horizontal)
 
-                    // 4. İstatistikler
-                    statsCard
-                        .padding(.horizontal)
-
-                    // 5. Envanter (ikonlu)
+                    // 4. Envanter (ikonlu)
                     inventoryCard
                         .padding(.horizontal)
 
@@ -111,7 +107,7 @@ struct ProfileView: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
                         .background(Color.gdlGold.opacity(0.12))
-                        .cornerRadius(14)
+                        .clipShape(RoundedRectangle(cornerRadius: GDLRadius.sm))
                     }
                     .padding(.horizontal)
                     .padding(.top, 8)
@@ -134,7 +130,7 @@ struct ProfileView: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
                         .background(Color.gdlNegative.opacity(isDeletingAccount ? 0.55 : 0.85))
-                        .cornerRadius(14)
+                        .clipShape(RoundedRectangle(cornerRadius: GDLRadius.sm))
                     }
                     .disabled(isDeletingAccount)
                     .padding(.horizontal)
@@ -153,8 +149,7 @@ struct ProfileView: View {
                             .foregroundColor(.gdlTextPrimary)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 14)
-                            .background(Color.gdlCardSecondary)
-                            .cornerRadius(14)
+                            .gdlSecondarySurface(radius: GDLRadius.sm)
                         }
                         .padding(.horizontal)
                         .padding(.top, 8)
@@ -194,7 +189,7 @@ struct ProfileView: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
                         .background(canResetToday ? Color.gdlNegative : Color.gray.opacity(0.4))
-                        .cornerRadius(14)
+                        .clipShape(RoundedRectangle(cornerRadius: GDLRadius.sm))
                     }
                     .disabled(!canResetToday || isWatchingAd)
                     .padding(.horizontal)
@@ -364,7 +359,7 @@ struct ProfileView: View {
     private var profileCard: some View {
         HStack(spacing: 16) {
             ZStack {
-                RoundedRectangle(cornerRadius: 16)
+                RoundedRectangle(cornerRadius: GDLRadius.lg)
                     .fill(Color.gdlGold.opacity(0.18))
                     .frame(width: 72, height: 72)
                 Image(systemName: "person.fill")
@@ -430,8 +425,8 @@ struct ProfileView: View {
                 }
                 Divider().background(Color.gdlDivider).padding(.horizontal, 14)
                 HStack(spacing: 0) {
-                    finCell(label: "Haftalık Kâr",   value: FormatUtils.tl(gameState.weeklyProfit),  color: .gdlTextPrimary, trailing: true)
-                    finCell(label: "Aylık Ciro",     value: FormatUtils.tl(gameState.monthlyRevenue),color: .gdlTextPrimary, trailing: false)
+                    finCell(label: "Toplam İşlem",   value: "\(gameState.totalTransactions)", color: .gdlTextPrimary, trailing: true)
+                    finCell(label: "Kabul Oranı",    value: acceptanceRateText,              color: .gdlTextPrimary, trailing: false)
                 }
             }
 
@@ -442,7 +437,7 @@ struct ProfileView: View {
                 .padding(14)
         }
         .background(Color.gdlCard)
-        .cornerRadius(16)
+        .clipShape(RoundedRectangle(cornerRadius: GDLRadius.lg))
     }
 
     private func finCell(label: String, value: String, color: Color, trailing: Bool) -> some View {
@@ -464,6 +459,12 @@ struct ProfileView: View {
                 Rectangle().frame(width: 1).foregroundColor(Color.gdlDivider)
             }
         }
+    }
+
+    private var acceptanceRateText: String {
+        guard gameState.totalTransactions > 0 else { return "%0" }
+        let rate = Int((Double(gameState.acceptedDeals) / Double(gameState.totalTransactions)) * 100)
+        return "%\(rate)"
     }
 
     // Servet dağılım çubuğu
@@ -666,21 +667,7 @@ struct ProfileView: View {
         return "lifestyle_\(slug)"
     }
 
-    // MARK: - 4. İşlem İstatistikleri
-
-    private var statsCard: some View {
-        SectionCard(title: "İşlem İstatistikleri", icon: "list.bullet.clipboard") {
-            statRow("Toplam İşlem",        "\(gameState.totalTransactions)")
-            statRow("Kabul Edilen",        "\(gameState.acceptedDeals)")
-            statRow("Reddedilen",          "\(gameState.rejectedDeals)")
-            if gameState.totalTransactions > 0 {
-                let rate = Int(Double(gameState.acceptedDeals) / Double(gameState.totalTransactions) * 100)
-                statRow("Kabul Oranı", "%\(rate)")
-            }
-        }
-    }
-
-    // MARK: - 5. Envanter (ikonlu)
+    // MARK: - 4. Envanter (ikonlu)
 
     private var inventoryCard: some View {
         SectionCard(title: "Envanter", icon: "archivebox.fill") {

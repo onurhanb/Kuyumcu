@@ -15,6 +15,7 @@ struct PlayerStatsRow: Codable {
     var inventoryHalf: Double
     var inventoryFull: Double
     var entryRightsRemaining: Int
+    var spinRightsRemaining: Int
     var totalProfit: Double
     var dailyProfit: Double
     var weeklyProfit: Double
@@ -30,6 +31,7 @@ struct PlayerStatsRow: Codable {
     var dailyRewardDay: Int
     var dailyRewardClaimedAt: String?
     var entryRightsRefreshedAt: String?
+    var profitDayAnchorAt: String?
 
     enum CodingKeys: String, CodingKey {
         case userId = "user_id"
@@ -43,6 +45,7 @@ struct PlayerStatsRow: Codable {
         case inventoryHalf = "inventory_half"
         case inventoryFull = "inventory_full"
         case entryRightsRemaining = "entry_rights_remaining"
+        case spinRightsRemaining = "spin_rights_remaining"
         case totalProfit = "total_profit"
         case dailyProfit = "daily_profit"
         case weeklyProfit = "weekly_profit"
@@ -58,6 +61,7 @@ struct PlayerStatsRow: Codable {
         case dailyRewardDay = "daily_reward_day"
         case dailyRewardClaimedAt = "daily_reward_claimed_at"
         case entryRightsRefreshedAt = "entry_rights_refreshed_at"
+        case profitDayAnchorAt = "profit_day_anchor_at"
     }
 }
 
@@ -72,6 +76,7 @@ struct SavePlayerStatsPayload: Encodable {
     var inventoryHalf: Double
     var inventoryFull: Double
     var entryRightsRemaining: Int
+    var spinRightsRemaining: Int
     var totalProfit: Double
     var dailyProfit: Double
     var weeklyProfit: Double
@@ -87,6 +92,7 @@ struct SavePlayerStatsPayload: Encodable {
     var dailyRewardDay: Int
     var dailyRewardClaimedAt: String?
     var entryRightsRefreshedAt: String?
+    var profitDayAnchorAt: String?
 
     enum CodingKeys: String, CodingKey {
         case shopName = "shop_name"
@@ -99,6 +105,7 @@ struct SavePlayerStatsPayload: Encodable {
         case inventoryHalf = "inventory_half"
         case inventoryFull = "inventory_full"
         case entryRightsRemaining = "entry_rights_remaining"
+        case spinRightsRemaining = "spin_rights_remaining"
         case totalProfit = "total_profit"
         case dailyProfit = "daily_profit"
         case weeklyProfit = "weekly_profit"
@@ -114,6 +121,7 @@ struct SavePlayerStatsPayload: Encodable {
         case dailyRewardDay = "daily_reward_day"
         case dailyRewardClaimedAt = "daily_reward_claimed_at"
         case entryRightsRefreshedAt = "entry_rights_refreshed_at"
+        case profitDayAnchorAt = "profit_day_anchor_at"
     }
 
     init(from state: GameState) {
@@ -128,6 +136,7 @@ struct SavePlayerStatsPayload: Encodable {
         inventoryHalf = state.inventory.halfGold
         inventoryFull = state.inventory.fullGold
         entryRightsRemaining = state.entryRightsRemaining
+        spinRightsRemaining = state.spinRightsRemaining
         totalProfit = state.totalProfit
         dailyProfit = state.dailyProfit
         weeklyProfit = state.weeklyProfit
@@ -143,6 +152,7 @@ struct SavePlayerStatsPayload: Encodable {
         dailyRewardDay = state.dailyRewardDay
         dailyRewardClaimedAt = state.dailyRewardClaimedAt.map { isoFormatter.string(from: $0) }
         entryRightsRefreshedAt = state.entryRightsRefreshedAt.map { isoFormatter.string(from: $0) }
+        profitDayAnchorAt = state.profitDayAnchorAt.map { isoFormatter.string(from: $0) }
     }
 }
 
@@ -440,7 +450,7 @@ class SupabaseSaveService {
         do {
             let row: PlayerStatsRow = try await supabase
                 .from("player_stats")
-                .select("user_id, shop_name, active_shop_key, player_cash, inventory_usd, inventory_eur, inventory_gram, inventory_quarter, inventory_half, inventory_full, entry_rights_remaining, total_profit, daily_profit, weekly_profit, monthly_revenue, current_day, passive_income_balance, passive_income_updated_at, total_transactions, accepted_deals, rejected_deals, lifestyle_score, yesterday_cash, daily_reward_day, daily_reward_claimed_at, entry_rights_refreshed_at")
+                .select("user_id, shop_name, active_shop_key, player_cash, inventory_usd, inventory_eur, inventory_gram, inventory_quarter, inventory_half, inventory_full, entry_rights_remaining, spin_rights_remaining, total_profit, daily_profit, weekly_profit, monthly_revenue, current_day, passive_income_balance, passive_income_updated_at, total_transactions, accepted_deals, rejected_deals, lifestyle_score, yesterday_cash, daily_reward_day, daily_reward_claimed_at, entry_rights_refreshed_at, profit_day_anchor_at")
                 .eq("user_id", value: userId.uuidString)
                 .single()
                 .execute()
@@ -489,6 +499,7 @@ class SupabaseSaveService {
         state.inventory.halfGold = row.inventoryHalf
         state.inventory.fullGold = row.inventoryFull
         state.entryRightsRemaining = row.entryRightsRemaining
+        state.spinRightsRemaining = row.spinRightsRemaining
         state.totalProfit = row.totalProfit
         state.dailyProfit = row.dailyProfit
         state.weeklyProfit = row.weeklyProfit
@@ -516,7 +527,12 @@ class SupabaseSaveService {
         if let supabaseEntryRefreshDate {
             state.entryRightsRefreshedAt = supabaseEntryRefreshDate
         }
+        let supabaseProfitDayAnchorAt = parseISODate(row.profitDayAnchorAt)
+        if let supabaseProfitDayAnchorAt {
+            state.profitDayAnchorAt = supabaseProfitDayAnchorAt
+        }
         state.syncEntryRightsIfNeeded()
+        state.syncProfitPeriodsIfNeeded()
     }
 
     private static func applyShops(_ rows: [OwnedShopRow], to state: GameState) {

@@ -19,6 +19,7 @@ struct HomeView: View {
     @State private var showIncomeAlert      = false
     @State private var lastCollectedAmount: Double = 0
     @State private var showDailyReward  = false
+    @State private var showSpinWheel = false
     @State private var tipIndex         = Int.random(in: 0..<infoTips.count)
     @State private var rankingTab       = 0
     @State private var passiveIncomeNow = Date()
@@ -42,9 +43,8 @@ struct HomeView: View {
         ]
         let items = gameState.rates.compactMap { rate -> String? in
             guard let label = labels[rate.type] else { return nil }
-            let spotPrice = (rate.buyPrice + rate.sellPrice) / 2
             let isGold = rate.type.hasSuffix("Gold")
-            let priceText = isGold ? FormatUtils.tl(spotPrice) : String(format: "₺%.2f", spotPrice)
+            let priceText = isGold ? FormatUtils.tl(rate.sellPrice) : String(format: "₺%.2f", rate.sellPrice)
             return "\(label) • \(priceText)"
         }
         return items.joined(separator: "     ")
@@ -135,7 +135,16 @@ struct HomeView: View {
                     .zIndex(10)
             }
         }
+        .overlay {
+            if showSpinWheel {
+                SpinWheelView(isPresented: $showSpinWheel)
+                    .environmentObject(gameState)
+                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                    .zIndex(11)
+            }
+        }
         .animation(.easeInOut(duration: 0.2), value: showDailyReward)
+        .animation(.easeInOut(duration: 0.2), value: showSpinWheel)
         .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { now in
             passiveIncomeNow = now
         }
@@ -211,7 +220,7 @@ struct HomeView: View {
                 )
                 .frame(height: 185)
 
-                // Üst satır: sol tarih, sağ günlük ödül
+                // Üst satır: sol tarih, sağ aksiyonlar
                 VStack {
                     HStack {
                         HStack(spacing: GDLSpacing.xxs) {
@@ -225,7 +234,7 @@ struct HomeView: View {
                         .padding(.horizontal, GDLSpacing.sm)
                         .padding(.vertical, GDLSpacing.xxs)
                         .background(Color.black.opacity(0.45))
-                        .cornerRadius(GDLRadius.sm)
+                        .clipShape(RoundedRectangle(cornerRadius: GDLRadius.sm))
                         Spacer()
                         Button { showDailyReward = true } label: {
                             HStack(spacing: GDLSpacing.xxs) {
@@ -237,12 +246,49 @@ struct HomeView: View {
                             .foregroundColor(.black)
                             .padding(.horizontal, GDLSpacing.sm)
                             .padding(.vertical, GDLSpacing.xs)
-                            .background(Color.gdlGold)
-                            .cornerRadius(GDLRadius.sm)
+                            .background(LinearGradient.gdlGoldButton)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: GDLRadius.sm)
+                                    .stroke(Color.white.opacity(0.16), lineWidth: 1)
+                            )
+                            .clipShape(RoundedRectangle(cornerRadius: GDLRadius.sm))
+                            .frame(width: 112, alignment: .center)
                         }
+                        .buttonStyle(.plain)
                     }
                     .padding(.horizontal, GDLSpacing.lg)
                     .padding(.top, GDLSpacing.md)
+                    Spacer()
+                }
+
+                VStack {
+                    HStack {
+                        Spacer()
+                        Button { showSpinWheel = true } label: {
+                            ZStack {
+                                if UIImage(named: "spin_button_icon") != nil {
+                                    Image("spin_button_icon")
+                                        .resizable()
+                                        .scaledToFit()
+                                        .frame(width: 56, height: 56)
+                                } else {
+                                    Image(systemName: "arrow.trianglehead.2.clockwise.rotate.90.circle.fill")
+                                        .resizable()
+                                        .scaledToFit()
+                                        .foregroundColor(.gdlGold)
+                                        .padding(10)
+                                        .background(Color.black.opacity(0.45))
+                                        .clipShape(Circle())
+                                        .frame(width: 56, height: 56)
+                                }
+                            }
+                            .frame(width: 56)
+                            .shadow(color: .black.opacity(0.28), radius: 10, x: 0, y: 4)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(.horizontal, GDLSpacing.lg)
+                    .padding(.top, 52)
                     Spacer()
                 }
 
@@ -270,43 +316,44 @@ struct HomeView: View {
 
             // Alt: 3×2 stat grid
             HStack(spacing: 0) {
-                statCell(label: "Net Değer",   value: FormatUtils.tl(gameState.totalNetWorth), icon: "chart.bar.fill",               color: .gdlGold,        trailing: true)
-                statCell(label: "Nakit",       value: FormatUtils.tl(gameState.playerCash),    icon: "turkishlirasign.circle.fill", color: .gdlTextPrimary, trailing: false)
+                statCell(label: "Net Değer",   value: FormatUtils.tl(gameState.totalNetWorth), icon: "chart.bar.fill",               valueColor: .gdlGold, iconColor: .gdlGold, trailing: true)
+                statCell(label: "Nakit",       value: FormatUtils.tl(gameState.playerCash),    icon: "turkishlirasign.circle.fill", valueColor: .gdlGold, iconColor: .gdlGold, trailing: false)
             }
             HStack(spacing: 0) {
-                statCell(label: "Günlük Kâr", value: FormatUtils.tl(gameState.dailyProfit),   icon: "arrow.up.right",               color: gameState.dailyProfit >= 0 ? .gdlPositive : .gdlNegative, trailing: true)
+                statCell(label: "Günlük Kâr", value: FormatUtils.tl(gameState.dailyProfit),   icon: "arrow.up.right",               valueColor: gameState.dailyProfit >= 0 ? .gdlPositive : .gdlNegative, iconColor: .gdlTextPrimary, trailing: true)
                 statCell(
                     label: "Giriş Hakkı",
                     value: "\(gameState.entryRightsRemaining)/3",
                     icon: "door.left.hand.open",
-                    color: showEntryRefreshPill ? .gdlNegative : .gdlGold,
+                    valueColor: showEntryRefreshPill ? .gdlNegative : .gdlPositive,
+                    iconColor: .gdlTextPrimary,
                     trailing: false,
                     badgeTitle: showEntryRefreshPill ? "Yenile" : nil,
                     badgeAction: showEntryRefreshPill ? { refreshEntryRightsFromAd() } : nil
                 )
             }
             HStack(spacing: 0) {
-                statCell(label: "Yaşam Puanı", value: "\(gameState.lifestyleScore) puan",            icon: "star.fill",                    color: .gdlGold,   trailing: true)
-                statCell(label: "Dükkan",      value: "\(gameState.ownedShops.count) adet",          icon: "building.2.fill",              color: .gdlTextPrimary, trailing: false)
+                statCell(label: "Yaşam Puanı", value: "\(gameState.lifestyleScore) puan",            icon: "star.fill",                    valueColor: .gdlTextPrimary, iconColor: .gdlTextPrimary, trailing: true)
+                statCell(label: "Dükkan",      value: "\(gameState.ownedShops.count) adet",          icon: "building.2.fill",              valueColor: .gdlTextPrimary, iconColor: .gdlTextPrimary, trailing: false)
             }
         }
         .background(Color.gdlCard)
-        .cornerRadius(GDLRadius.lg)
-        .clipped()
+        .clipShape(RoundedRectangle(cornerRadius: GDLRadius.lg))
     }
 
     private func statCell(
         label: String,
         value: String,
         icon: String,
-        color: Color,
+        valueColor: Color,
+        iconColor: Color,
         trailing: Bool,
         badgeTitle: String? = nil,
         badgeAction: (() -> Void)? = nil
     ) -> some View {
         VStack(alignment: .leading, spacing: GDLSpacing.xxs) {
             HStack(spacing: GDLSpacing.xxs) {
-                Image(systemName: icon).font(.caption2).foregroundColor(color.opacity(0.75))
+                Image(systemName: icon).font(.caption2).foregroundColor(iconColor)
                 Text(label).font(.gdlCaption()).foregroundColor(.gdlTextSecondary)
                 Spacer(minLength: 0)
                 if let badgeTitle, let badgeAction {
@@ -314,17 +361,17 @@ struct HomeView: View {
                         Text(badgeTitle)
                             .font(.system(size: 10, weight: .semibold))
                             .foregroundColor(.black)
-                            .padding(.horizontal, GDLSpacing.xs)
-                            .padding(.vertical, 4)
-                            .background(Color.gdlGold)
-                            .clipShape(Capsule())
+                    .padding(.horizontal, GDLSpacing.xs)
+                    .padding(.vertical, 4)
+                    .background(Color.gdlGold)
+                    .clipShape(Capsule())
                     }
                     .buttonStyle(.plain)
                 }
             }
             Text(value)
                 .font(.system(size: 17, weight: .bold, design: .rounded))
-                .foregroundColor(color)
+                .foregroundColor(valueColor)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
         }
@@ -376,7 +423,7 @@ struct HomeView: View {
             .padding(.horizontal, GDLSpacing.md)
             .padding(.vertical, GDLSpacing.sm)
             .background(Color.gdlGold)
-            .cornerRadius(GDLRadius.sm)
+            .clipShape(RoundedRectangle(cornerRadius: GDLRadius.sm))
         } else {
             // Etkinlik yok — ince bilgi satırı
             let tip = infoTips[tipIndex]
@@ -396,7 +443,7 @@ struct HomeView: View {
             .padding(.horizontal, GDLSpacing.md)
             .padding(.vertical, GDLSpacing.sm)
             .background(Color.gdlCard)
-            .cornerRadius(GDLRadius.sm)
+            .clipShape(RoundedRectangle(cornerRadius: GDLRadius.sm))
         }
     }
 
@@ -432,7 +479,7 @@ struct HomeView: View {
                 .padding(.vertical, 12)
         }
         .background(Color.gdlCard)
-        .cornerRadius(16)
+        .clipShape(RoundedRectangle(cornerRadius: GDLRadius.lg))
     }
 
     private func shopRow(shop: Shop) -> some View {
@@ -441,12 +488,19 @@ struct HomeView: View {
         return HStack(spacing: 12) {
             ZStack {
                 RoundedRectangle(cornerRadius: 10)
-                    .fill(Color.gdlGold.opacity(0.15))
+                    .stroke(LinearGradient.gdlGoldButton, lineWidth: 1.5)
                     .frame(width: 44, height: 44)
-                Image(systemName: shop.locationType.icon)
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(.gdlGold)
+                ZStack {
+                    LinearGradient.gdlGoldButton
+                        .mask(
+                            Image(systemName: shop.locationType.icon)
+                                .font(.system(size: 18, weight: .semibold))
+                                .frame(width: 20, height: 20)
+                        )
+                }
+                .frame(width: 20, height: 20)
             }
+            .frame(width: 44, height: 44)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(shop.name)
@@ -469,7 +523,7 @@ struct HomeView: View {
             Spacer()
 
             HStack(spacing: 6) {
-                CompactActionButton(title: "Gir", icon: "chevron.right", iconTrailing: true, style: .gold) {
+                CompactActionButton(title: "Gir", icon: "chevron.right", iconTrailing: true, style: .goldGradient) {
                     audioManager.playEffect(.buttonTap)
                     promptEntry(for: shop)
                 }
@@ -505,13 +559,12 @@ struct HomeView: View {
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
-                .background(Color.gdlCardSecondary)
-                .cornerRadius(10)
+                .gdlSecondarySurface(radius: GDLRadius.sm)
             } else {
                 CompactActionButton(
                     title: "İzle & Topla",
                     icon: "play.rectangle.fill",
-                    style: .gold,
+                    style: .goldGradient,
                     isDisabled: !canCollect
                 ) {
                     audioManager.playEffect(.buttonTap)
@@ -573,7 +626,7 @@ struct HomeView: View {
                 .padding(.top, 4)
         }
         .background(Color.gdlCard)
-        .cornerRadius(16)
+        .clipShape(RoundedRectangle(cornerRadius: GDLRadius.lg))
     }
 
     // MARK: - Sıralama Kartı
@@ -625,8 +678,7 @@ struct HomeView: View {
                     }
                 }
             }
-            .background(Color.gdlCardSecondary)
-            .cornerRadius(8)
+            .gdlSecondarySurface(radius: GDLRadius.sm)
             .padding(.horizontal, 16)
             .padding(.bottom, 10)
 
@@ -658,7 +710,7 @@ struct HomeView: View {
             }
         }
         .background(Color.gdlCard)
-        .cornerRadius(16)
+        .clipShape(RoundedRectangle(cornerRadius: GDLRadius.lg))
     }
 
     private func rankingRow(rank: Int, entry: LeaderboardEntry, tab: Int) -> some View {
@@ -709,9 +761,8 @@ struct HomeView: View {
     }
 
     private func rateCell(rate: Rate, trailing: Bool) -> some View {
-        let spotPrice = (rate.buyPrice + rate.sellPrice) / 2
         let isGold    = rate.type.hasSuffix("Gold")
-        let priceText = isGold ? FormatUtils.tl(spotPrice) : String(format: "₺%.2f", spotPrice)
+        let priceText = isGold ? FormatUtils.tl(rate.sellPrice) : String(format: "₺%.2f", rate.sellPrice)
         let changeDir = rate.changeDir
 
         return HStack(spacing: 8) {

@@ -86,6 +86,9 @@ struct KuyumcuApp: App {
                         await SupabaseSaveService.loadRates(into: gameState)
                         await SupabaseSaveService.loadEvents(into: gameState)
                         await pushService.syncSavedTokenIfPossible()
+                        await MainActor.run {
+                            _ = gameState.syncProfitPeriodsIfNeeded(persistsChanges: true, syncsCloud: true)
+                        }
                     }
                 }
             }
@@ -110,6 +113,7 @@ struct KuyumcuApp: App {
         await pushService.configureAndSync()
         await MainActor.run {
             gameState.syncEntryRightsIfNeeded()
+            gameState.syncProfitPeriodsIfNeeded()
         }
 
         await MainActor.run {

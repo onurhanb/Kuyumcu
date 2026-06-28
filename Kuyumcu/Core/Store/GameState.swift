@@ -9,6 +9,109 @@ enum CloudSyncStatus {
 }
 
 class GameState: ObservableObject {
+    enum DailyRewardKind {
+        case cash(Double)
+        case spinRights(Int)
+
+        var iconName: String {
+            switch self {
+            case .cash:
+                return "banknote.fill"
+            case .spinRights:
+                return "arrow.trianglehead.2.clockwise.rotate.90.circle.fill"
+            }
+        }
+    }
+
+    enum WheelReward: String, CaseIterable, Identifiable {
+        case tl10k
+        case half1
+        case usd1000
+        case tl20k
+        case quarter1
+        case tl40k
+        case spinRights2
+        case tl50k
+        case eur1000
+        case gram1
+        case tl30k
+        case full1
+
+        var id: String { rawValue }
+
+        var shortLabel: String {
+            switch self {
+            case .tl10k: return "₺10K"
+            case .tl20k: return "₺20K"
+            case .tl30k: return "₺30K"
+            case .tl40k: return "₺40K"
+            case .tl50k: return "₺50K"
+            case .spinRights2: return "x2"
+            case .usd1000: return "$1K"
+            case .eur1000: return "€1K"
+            case .gram1: return "Gram"
+            case .quarter1: return "Çeyrek"
+            case .half1: return "Yarım"
+            case .full1: return "Tam"
+            }
+        }
+
+        var displayTitle: String {
+            switch self {
+            case .tl10k: return "10.000 TL"
+            case .tl20k: return "20.000 TL"
+            case .tl30k: return "30.000 TL"
+            case .tl40k: return "40.000 TL"
+            case .tl50k: return "50.000 TL"
+            case .spinRights2: return "2 Çark Hakkı"
+            case .usd1000: return "1000 Dolar"
+            case .eur1000: return "1000 Euro"
+            case .gram1: return "1 Gram Altın"
+            case .quarter1: return "1 Çeyrek Altın"
+            case .half1: return "1 Yarım Altın"
+            case .full1: return "1 Tam Altın"
+            }
+        }
+
+        var weight: Int {
+            switch self {
+            case .tl10k: return 18
+            case .tl20k: return 16
+            case .tl30k: return 12
+            case .tl40k: return 8
+            case .tl50k: return 5
+            case .spinRights2: return 4
+            case .usd1000: return 10
+            case .eur1000: return 10
+            case .gram1: return 8
+            case .quarter1: return 4
+            case .half1: return 3
+            case .full1: return 2
+            }
+        }
+
+        var accentColorName: String {
+            switch self {
+            case .tl10k, .tl20k, .tl30k, .tl40k, .tl50k:
+                return "cash"
+            case .spinRights2:
+                return "rights"
+            case .usd1000, .eur1000:
+                return "fx"
+            case .gram1, .quarter1, .half1, .full1:
+                return "gold"
+            }
+        }
+    }
+
+    private enum InventoryBucket: Hashable {
+        case gramGold
+        case quarterGold
+        case halfGold
+        case fullGold
+        case usd
+        case eur
+    }
 
     // MARK: - Finances
     @Published var playerCash: Double
@@ -24,6 +127,7 @@ class GameState: ObservableObject {
 
     // MARK: - Progression
     @Published var entryRightsRemaining: Int
+    @Published var spinRightsRemaining: Int
     @Published var totalProfit: Double
     @Published var dailyProfit: Double
     @Published var weeklyProfit: Double
@@ -60,14 +164,24 @@ class GameState: ObservableObject {
     @Published var dailyRewardDay: Int       = 0    // son alınan gün (0 = hiç)
     @Published var dailyRewardClaimedAt: Date? = nil // son alım tarihi
     @Published var entryRightsRefreshedAt: Date? = nil
+    @Published var profitDayAnchorAt: Date? = nil
     @Published var cloudSyncStatus: CloudSyncStatus = .idle
     @Published var cloudSyncErrorMessage: String?
     @Published var cloudSyncUpdatedAt: Date?
 
     static let dailyRewardAmounts: [Int: Double] = [
-        1: 5_000, 2: 10_000, 3: 15_000, 4: 20_000,
-        5: 25_000, 6: 30_000, 7: 100_000
+        1: 5_000, 2: 10_000, 4: 20_000,
+        5: 25_000, 7: 100_000
     ]
+
+    static func dailyRewardKind(for day: Int) -> DailyRewardKind {
+        switch day {
+        case 3, 6:
+            return .spinRights(1)
+        default:
+            return .cash(dailyRewardAmounts[day] ?? 0)
+        }
+    }
 
     /// Oyun günü başlangıcı: İstanbul 08:00 (UTC+3)
     static func istanbulGameDayStart(of date: Date) -> Date {
@@ -82,6 +196,14 @@ class GameState: ObservableObject {
 
     static func isSameGameDay(_ lhs: Date, _ rhs: Date) -> Bool {
         istanbulGameDayStart(of: lhs) == istanbulGameDayStart(of: rhs)
+    }
+
+    static func gameDayDelta(from start: Date, to end: Date) -> Int {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "Europe/Istanbul")!
+        let startDay = istanbulGameDayStart(of: start)
+        let endDay = istanbulGameDayStart(of: end)
+        return max(0, cal.dateComponents([.day], from: startDay, to: endDay).day ?? 0)
     }
 
     private var daysSinceLastClaim: Int {
@@ -103,12 +225,18 @@ class GameState: ObservableObject {
     }
 
     func claimDailyReward() {
+        syncProfitPeriodsIfNeeded()
         guard !dailyRewardClaimedToday else { return }
-        let day    = dailyRewardAvailableDay
-        let reward = Self.dailyRewardAmounts[day] ?? 0
-        receiveCash(reward)
-        dailyProfit += reward
-        totalProfit += reward
+        let day = dailyRewardAvailableDay
+        switch Self.dailyRewardKind(for: day) {
+        case .cash(let reward):
+            receiveCash(reward)
+            dailyProfit += reward
+            weeklyProfit += reward
+            totalProfit += reward
+        case .spinRights(let count):
+            spinRightsRemaining += max(0, count)
+        }
         dailyRewardDay = day
         dailyRewardClaimedAt = Date()
         GameSaveService.save(self)
@@ -131,6 +259,10 @@ class GameState: ObservableObject {
         return entryRightsRemaining > 0
     }
 
+    var canSpinWheel: Bool {
+        spinRightsRemaining > 0
+    }
+
     @discardableResult
     func consumeEntryRightAndEnterShop(_ shop: Shop, at date: Date = Date()) -> Bool {
         syncEntryRightsIfNeeded(at: date)
@@ -149,6 +281,126 @@ class GameState: ObservableObject {
         Task { await SupabaseSaveService.save(self) }
     }
 
+    func applyWheelReward(_ reward: WheelReward) {
+        guard spinRightsRemaining > 0 else { return }
+        spinRightsRemaining -= 1
+        applyWheelReward(reward, persistsChanges: true)
+    }
+
+    func randomWheelReward() -> WheelReward {
+        selectWheelReward()
+    }
+
+    private func applyWheelReward(_ reward: WheelReward, persistsChanges: Bool) {
+        let rewardValue = wheelRewardValue(for: reward)
+
+        switch reward {
+        case .tl10k:
+            receiveCash(10_000)
+        case .tl20k:
+            receiveCash(20_000)
+        case .tl30k:
+            receiveCash(30_000)
+        case .tl40k:
+            receiveCash(40_000)
+        case .tl50k:
+            receiveCash(50_000)
+        case .spinRights2:
+            spinRightsRemaining += 2
+        case .usd1000:
+            inventory.usd += 1_000
+        case .eur1000:
+            inventory.eur += 1_000
+        case .gram1:
+            inventory.gramGold += 1
+        case .quarter1:
+            inventory.quarterGold += 1
+        case .half1:
+            inventory.halfGold += 1
+        case .full1:
+            inventory.fullGold += 1
+        }
+
+        dailyProfit += rewardValue
+        weeklyProfit += rewardValue
+        totalProfit += rewardValue
+
+        if persistsChanges {
+            GameSaveService.save(self)
+            Task { await SupabaseSaveService.save(self) }
+        }
+    }
+
+    private func wheelRewardValue(for reward: WheelReward) -> Double {
+        switch reward {
+        case .tl10k: return 10_000
+        case .tl20k: return 20_000
+        case .tl30k: return 30_000
+        case .tl40k: return 40_000
+        case .tl50k: return 50_000
+        case .spinRights2: return 0
+        case .usd1000:
+            return 1_000 * (rate(for: "USD")?.buyPrice ?? 0)
+        case .eur1000:
+            return 1_000 * (rate(for: "EUR")?.buyPrice ?? 0)
+        case .gram1:
+            return rate(for: "gramGold")?.buyPrice ?? 0
+        case .quarter1:
+            return rate(for: "quarterGold")?.buyPrice ?? 0
+        case .half1:
+            return rate(for: "halfGold")?.buyPrice ?? 0
+        case .full1:
+            return rate(for: "fullGold")?.buyPrice ?? 0
+        }
+    }
+
+    private func selectWheelReward() -> WheelReward {
+        let rewards = WheelReward.allCases
+        let totalWeight = rewards.reduce(0) { $0 + $1.weight }
+        var threshold = Int.random(in: 0..<max(totalWeight, 1))
+
+        for reward in rewards {
+            threshold -= reward.weight
+            if threshold < 0 {
+                return reward
+            }
+        }
+
+        return rewards[0]
+    }
+
+    @discardableResult
+    func syncProfitPeriodsIfNeeded(
+        at date: Date = Date(),
+        persistsChanges: Bool = false,
+        syncsCloud: Bool = false
+    ) -> Bool {
+        if let profitDayAnchorAt {
+            let dayDelta = Self.gameDayDelta(from: profitDayAnchorAt, to: date)
+            guard dayDelta > 0 else { return false }
+
+            yesterdayCash = playerCash
+            for _ in 0..<dayDelta {
+                currentDay += 1
+                dailyProfit = 0
+                if currentDay % 7 == 0 { weeklyProfit = 0 }
+                if currentDay % 30 == 0 { monthlyRevenue = 0 }
+            }
+        }
+
+        let didChange = profitDayAnchorAt == nil || !Self.isSameGameDay(profitDayAnchorAt ?? date, date)
+        profitDayAnchorAt = date
+
+        if didChange && persistsChanges {
+            GameSaveService.save(self)
+            if syncsCloud {
+                Task { await SupabaseSaveService.save(self) }
+            }
+        }
+
+        return didChange
+    }
+
     func retryCloudSync() {
         Task { await SupabaseSaveService.save(self) }
     }
@@ -165,6 +417,7 @@ class GameState: ObservableObject {
         let firstShop                    = shops.first(where: { $0.isOwned })
         self.activeShop                  = firstShop
         self.entryRightsRemaining        = 3
+        self.spinRightsRemaining         = 0
         self.totalProfit                 = 0
         self.dailyProfit                 = 0
         self.weeklyProfit                = 0
@@ -269,6 +522,7 @@ class GameState: ObservableObject {
     // MARK: - Actions
 
     func collectPassiveIncome() {
+        syncProfitPeriodsIfNeeded()
         let now = Date()
         let income = passiveIncomeAvailable(at: now)
         guard income > 0 else { return }
@@ -313,6 +567,7 @@ class GameState: ObservableObject {
         yesterdayCash = playerCash
         currentDay   += 1
         dailyProfit   = 0
+        profitDayAnchorAt = Date()
         isBargaining                 = false
         if currentDay % 7  == 0 { weeklyProfit   = 0 }
         if currentDay % 30 == 0 { monthlyRevenue  = 0 }
@@ -325,6 +580,8 @@ class GameState: ObservableObject {
 
     func quickTrade(category: ProductCategory, qty: Double, isBuying: Bool) {
         guard qty > 0 else { return }
+        syncProfitPeriodsIfNeeded()
+        let netWorthBefore = totalNetWorth
         let rateKey: String
         switch category {
         case .goldGram:    rateKey = "gramGold"
@@ -362,6 +619,10 @@ class GameState: ObservableObject {
         case .jewelry:
             if isBuying { inventory.gramGold += qty } else { inventory.gramGold -= qty }
         }
+        let profitDelta = totalNetWorth - netWorthBefore
+        dailyProfit += profitDelta
+        weeklyProfit += profitDelta
+        totalProfit += profitDelta
         GameSaveService.save(self)
         Task { await SupabaseSaveService.save(self) }
     }
@@ -389,6 +650,7 @@ class GameState: ObservableObject {
         activeShop                  = first
         shopName = keepsShopName ? retainedShopName : "Misafir"
         entryRightsRemaining        = 3
+        spinRightsRemaining         = 0
         totalProfit                 = 0
         dailyProfit                 = 0
         weeklyProfit                = 0
@@ -405,6 +667,7 @@ class GameState: ObservableObject {
         dailyRewardDay              = 0
         dailyRewardClaimedAt        = nil
         entryRightsRefreshedAt      = nil
+        profitDayAnchorAt           = nil
         isBargaining                = false
         customerQueue               = []
         currentCustomer             = nil
@@ -424,6 +687,7 @@ class GameState: ObservableObject {
     @discardableResult
     func processAcceptedTransaction(offer: Double, direction: TransactionDirection, items: [RequestItem]) -> Bool {
         guard offer > 0 else { return false }
+        syncProfitPeriodsIfNeeded()
         let baseValue = calculateBaseValue(for: items, direction: direction)
         let profit: Double
 
@@ -516,8 +780,10 @@ class GameState: ObservableObject {
     /// Müşteri oyuncudan satın alıyorsa, envanterde yeterli ürün var mı?
     func hasEnoughStock(for items: [RequestItem], direction: TransactionDirection) -> Bool {
         guard direction == .customerBuysFromPlayer else { return true }
-        for item in items {
-            if !hasEnoughInventory(category: item.productCategory, quantity: item.quantity) { return false }
+        for (bucket, requiredQuantity) in requiredInventoryBuckets(for: items) {
+            if availableQuantity(in: bucket) < requiredQuantity {
+                return false
+            }
         }
         return true
     }
@@ -631,30 +897,54 @@ class GameState: ObservableObject {
     }
 
     private func deductInventory(items: [RequestItem]) {
-        for item in items {
-            switch item.productCategory {
-            case .goldGram:    inventory.gramGold    -= item.quantity
-            case .goldQuarter: inventory.quarterGold -= item.quantity
-            case .goldHalf:    inventory.halfGold    -= item.quantity
-            case .goldFull:    inventory.fullGold    -= item.quantity
-            case .currencyUSD: inventory.usd         -= item.quantity
-            case .currencyEUR: inventory.eur         -= item.quantity
-            case .jewelry:     inventory.gramGold    -= item.quantity
-            }
+        for (bucket, quantity) in requiredInventoryBuckets(for: items) {
+            adjustInventory(bucket: bucket, delta: -quantity)
         }
     }
 
     private func addInventory(items: [RequestItem]) {
         for item in items {
-            switch item.productCategory {
-            case .goldGram:    inventory.gramGold    += item.quantity
-            case .goldQuarter: inventory.quarterGold += item.quantity
-            case .goldHalf:    inventory.halfGold    += item.quantity
-            case .goldFull:    inventory.fullGold    += item.quantity
-            case .currencyUSD: inventory.usd         += item.quantity
-            case .currencyEUR: inventory.eur         += item.quantity
-            case .jewelry:     inventory.gramGold    += item.quantity
-            }
+            adjustInventory(bucket: inventoryBucket(for: item.productCategory), delta: item.quantity)
+        }
+    }
+
+    private func requiredInventoryBuckets(for items: [RequestItem]) -> [InventoryBucket: Double] {
+        items.reduce(into: [:]) { totals, item in
+            let bucket = inventoryBucket(for: item.productCategory)
+            totals[bucket, default: 0] += item.quantity
+        }
+    }
+
+    private func inventoryBucket(for category: ProductCategory) -> InventoryBucket {
+        switch category {
+        case .goldGram, .jewelry: return .gramGold
+        case .goldQuarter: return .quarterGold
+        case .goldHalf: return .halfGold
+        case .goldFull: return .fullGold
+        case .currencyUSD: return .usd
+        case .currencyEUR: return .eur
+        }
+    }
+
+    private func availableQuantity(in bucket: InventoryBucket) -> Double {
+        switch bucket {
+        case .gramGold: return inventory.gramGold
+        case .quarterGold: return inventory.quarterGold
+        case .halfGold: return inventory.halfGold
+        case .fullGold: return inventory.fullGold
+        case .usd: return inventory.usd
+        case .eur: return inventory.eur
+        }
+    }
+
+    private func adjustInventory(bucket: InventoryBucket, delta: Double) {
+        switch bucket {
+        case .gramGold: inventory.gramGold += delta
+        case .quarterGold: inventory.quarterGold += delta
+        case .halfGold: inventory.halfGold += delta
+        case .fullGold: inventory.fullGold += delta
+        case .usd: inventory.usd += delta
+        case .eur: inventory.eur += delta
         }
     }
 }

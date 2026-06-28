@@ -22,6 +22,7 @@ type SaveRequest = {
     inventory_half: number;
     inventory_full: number;
     entry_rights_remaining: number;
+    spin_rights_remaining: number;
     total_profit: number;
     daily_profit: number;
     weekly_profit: number;
@@ -37,6 +38,7 @@ type SaveRequest = {
     daily_reward_day: number;
     daily_reward_claimed_at: string | null;
     entry_rights_refreshed_at: string | null;
+    profit_day_anchor_at: string | null;
   };
   owned_shops: Array<{
     shop_key: string;

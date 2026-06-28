@@ -71,7 +71,7 @@ struct DailyRewardView: View {
                     .padding(.bottom, 18)
             }
             .background(Color.gdlCard)
-            .cornerRadius(20)
+            .clipShape(RoundedRectangle(cornerRadius: GDLRadius.xxl))
             .padding(.horizontal, 24)
             .shadow(color: .black.opacity(0.4), radius: 24, x: 0, y: 8)
             .alert("Reklam Hazır Değil", isPresented: $showAdNotReadyAlert) {
@@ -87,7 +87,7 @@ struct DailyRewardView: View {
     @ViewBuilder
     private func dayCell(day: Int) -> some View {
         let status = cellStatus(day: day)
-        let reward = GameState.dailyRewardAmounts[day] ?? 0
+        let reward = GameState.dailyRewardKind(for: day)
 
         Button {
             guard status == .available else { return }
@@ -103,11 +103,11 @@ struct DailyRewardView: View {
         } label: {
             VStack(spacing: 7) {
                 VStack(spacing: 5) {
-                    Image(systemName: "banknote.fill")
+                    Image(systemName: rewardIconName(for: reward))
                         .font(.system(size: 18, weight: .semibold))
                         .foregroundColor(status.amountColor)
 
-                    Text(rewardLabel(reward))
+                    Text(rewardLabel(for: reward))
                         .font(.system(size: 13, weight: .bold, design: .rounded))
                         .foregroundColor(status.amountColor)
                         .lineLimit(1)
@@ -192,7 +192,20 @@ struct DailyRewardView: View {
         return .locked
     }
 
-    private func rewardLabel(_ amount: Double) -> String {
+    private func rewardIconName(for reward: GameState.DailyRewardKind) -> String {
+        reward.iconName
+    }
+
+    private func rewardLabel(for reward: GameState.DailyRewardKind) -> String {
+        switch reward {
+        case .cash(let amount):
+            return cashRewardLabel(amount)
+        case .spinRights(let count):
+            return "Çark +\(count)"
+        }
+    }
+
+    private func cashRewardLabel(_ amount: Double) -> String {
         if amount >= 1_000_000 {
             return String(format: "%.0fM ₺", amount / 1_000_000)
         } else if amount >= 1_000 {

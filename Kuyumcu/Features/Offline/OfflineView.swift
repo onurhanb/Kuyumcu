@@ -24,7 +24,7 @@ struct OfflineView: View {
                         .font(.system(size: 22, weight: .bold, design: .rounded))
                         .foregroundColor(.gdlTextPrimary)
 
-                    Text("Altın Dealer Life oynamak için\ninternet bağlantısı gereklidir.\nBağlantını kontrol edip tekrar dene.")
+                    Text("Oyunu oynamak için\ninternet bağlantısı gereklidir.\nBağlantını kontrol edip tekrar dene.")
                         .font(.system(size: 15))
                         .foregroundColor(.gdlTextSecondary)
                         .multilineTextAlignment(.center)
