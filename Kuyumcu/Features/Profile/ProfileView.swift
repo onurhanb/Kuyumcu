@@ -436,8 +436,7 @@ struct ProfileView: View {
             wealthBreakdownChart
                 .padding(14)
         }
-        .background(Color.gdlCard)
-        .clipShape(RoundedRectangle(cornerRadius: GDLRadius.lg))
+        .gdlOuterSurface(radius: GDLRadius.cardOuterRadius)
     }
 
     private func finCell(label: String, value: String, color: Color, trailing: Bool) -> some View {

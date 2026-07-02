@@ -70,8 +70,8 @@ struct DailyRewardView: View {
                     .padding(.horizontal, 20)
                     .padding(.bottom, 18)
             }
-            .background(Color.gdlCard)
-            .clipShape(RoundedRectangle(cornerRadius: GDLRadius.xxl))
+            .background(LinearGradient.gdlOuterSurface)
+            .clipShape(RoundedRectangle(cornerRadius: GDLRadius.shellOuterRadius))
             .padding(.horizontal, 24)
             .shadow(color: .black.opacity(0.4), radius: 24, x: 0, y: 8)
             .alert("Reklam Hazır Değil", isPresented: $showAdNotReadyAlert) {
@@ -117,7 +117,7 @@ struct DailyRewardView: View {
                     .frame(width: 72, height: 72)
                     .background(
                         RoundedRectangle(cornerRadius: 12)
-                            .fill(status.boxFill)
+                            .fill(cellFillStyle(for: status))
                     )
                     .overlay(
                         RoundedRectangle(cornerRadius: 12)
@@ -190,6 +190,17 @@ struct DailyRewardView: View {
         if day == availableDay && !claimedToday { return .available }
         // Kilit
         return .locked
+    }
+
+    private func cellFillStyle(for status: CellStatus) -> AnyShapeStyle {
+        switch status {
+        case .claimed:
+            return AnyShapeStyle(Color.gdlGold.opacity(0.16))
+        case .available:
+            return AnyShapeStyle(LinearGradient.gdlGoldButton)
+        case .locked:
+            return AnyShapeStyle(Color.gdlCardSecondary)
+        }
     }
 
     private func rewardIconName(for reward: GameState.DailyRewardKind) -> String {

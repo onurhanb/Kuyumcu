@@ -312,7 +312,9 @@ struct HomeView: View {
             .frame(height: 185)
             .clipped()
 
-            Divider().background(Color.gdlDivider).padding(.horizontal, GDLSpacing.lg)
+            Rectangle()
+                .fill(Color.gdlDivider)
+                .frame(height: 1)
 
             // Alt: 3×2 stat grid
             HStack(spacing: 0) {
@@ -337,8 +339,7 @@ struct HomeView: View {
                 statCell(label: "Dükkan",      value: "\(gameState.ownedShops.count) adet",          icon: "building.2.fill",              valueColor: .gdlTextPrimary, iconColor: .gdlTextPrimary, trailing: false)
             }
         }
-        .background(Color.gdlCard)
-        .clipShape(RoundedRectangle(cornerRadius: GDLRadius.lg))
+        .gdlOuterSurface(radius: GDLRadius.cardOuterRadius)
     }
 
     private func statCell(
@@ -355,25 +356,29 @@ struct HomeView: View {
             HStack(spacing: GDLSpacing.xxs) {
                 Image(systemName: icon).font(.caption2).foregroundColor(iconColor)
                 Text(label).font(.gdlCaption()).foregroundColor(.gdlTextSecondary)
-                Spacer(minLength: 0)
+            }
+            HStack(spacing: GDLSpacing.xs) {
+                Text(value)
+                    .font(.system(size: 17, weight: .bold, design: .rounded))
+                    .foregroundColor(valueColor)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+
                 if let badgeTitle, let badgeAction {
                     Button(action: badgeAction) {
                         Text(badgeTitle)
                             .font(.system(size: 10, weight: .semibold))
                             .foregroundColor(.black)
-                    .padding(.horizontal, GDLSpacing.xs)
-                    .padding(.vertical, 4)
-                    .background(Color.gdlGold)
-                    .clipShape(Capsule())
+                            .padding(.horizontal, GDLSpacing.xs)
+                            .padding(.vertical, 4)
+                            .background(Color.gdlGold)
+                            .clipShape(Capsule())
                     }
                     .buttonStyle(.plain)
                 }
+
+                Spacer(minLength: 0)
             }
-            Text(value)
-                .font(.system(size: 17, weight: .bold, design: .rounded))
-                .foregroundColor(valueColor)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, GDLSpacing.lg)
@@ -478,8 +483,7 @@ struct HomeView: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
         }
-        .background(Color.gdlCard)
-        .clipShape(RoundedRectangle(cornerRadius: GDLRadius.lg))
+        .gdlOuterSurface(radius: GDLRadius.cardOuterRadius)
     }
 
     private func shopRow(shop: Shop) -> some View {
@@ -625,8 +629,7 @@ struct HomeView: View {
                 .padding(.bottom, 12)
                 .padding(.top, 4)
         }
-        .background(Color.gdlCard)
-        .clipShape(RoundedRectangle(cornerRadius: GDLRadius.lg))
+        .gdlOuterSurface(radius: GDLRadius.cardOuterRadius)
     }
 
     // MARK: - Sıralama Kartı
@@ -709,8 +712,7 @@ struct HomeView: View {
                 }
             }
         }
-        .background(Color.gdlCard)
-        .clipShape(RoundedRectangle(cornerRadius: GDLRadius.lg))
+        .gdlOuterSurface(radius: GDLRadius.cardOuterRadius)
     }
 
     private func rankingRow(rank: Int, entry: LeaderboardEntry, tab: Int) -> some View {

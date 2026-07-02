@@ -87,6 +87,7 @@ struct KuyumcuApp: App {
                         await SupabaseSaveService.loadEvents(into: gameState)
                         await pushService.syncSavedTokenIfPossible()
                         await MainActor.run {
+                            AdManager.shared.handleAppDidBecomeActive()
                             _ = gameState.syncProfitPeriodsIfNeeded(persistsChanges: true, syncsCloud: true)
                         }
                     }

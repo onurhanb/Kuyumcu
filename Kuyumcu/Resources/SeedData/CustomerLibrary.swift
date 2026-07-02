@@ -472,7 +472,8 @@ enum CustomerLibrary {
 
     private static func typeWeights(
         for loc: ShopLocationType,
-        vipModifier: Double = 1.0
+        vipModifier: Double = 1.0,
+        shopVIPChance: Double = 0.0
     ) -> [CustomerType: Double] {
         var weights: [CustomerType: Double]
         switch loc {
@@ -490,7 +491,8 @@ enum CustomerLibrary {
             weights = [.regular: 1, .frugal: 1, .generous: 2, .urgent: 1, .tourist: 2, .vip: 4]
         }
 
-        let clampedVIPModifier = max(0.5, min(vipModifier, 2.5))
+        let shopVIPFactor = 1.0 + (max(0.0, shopVIPChance) * 3.0)
+        let clampedVIPModifier = max(0.5, min(vipModifier * shopVIPFactor, 3.0))
         if let vipWeight = weights[.vip], vipWeight > 0 {
             weights[.vip] = vipWeight * clampedVIPModifier
         }
@@ -502,10 +504,15 @@ enum CustomerLibrary {
 
     static func generateCustomer(
         for locationType: ShopLocationType,
-        vipModifier: Double = 1.0
+        vipModifier: Double = 1.0,
+        shopVIPChance: Double = 0.0
     ) -> Customer {
         // 1. Tipe göre profil seç
-        let weights    = typeWeights(for: locationType, vipModifier: vipModifier)
+        let weights    = typeWeights(
+            for: locationType,
+            vipModifier: vipModifier,
+            shopVIPChance: shopVIPChance
+        )
         let pickedType = weightedRandomType(weights)
 
         // 2. Eşleşen profili seç

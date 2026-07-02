@@ -12,11 +12,17 @@ import UserMessagingPlatform
 
 @MainActor
 class AdManager: NSObject, ObservableObject {
+    private enum LoadState {
+        case idle
+        case loading
+        case ready
+        case cooldown
+    }
 
     static let shared = AdManager()
 
-    @Published var isAdReady = false
-    @Published var isLoading = false
+    @Published private(set) var isAdReady = false
+    @Published private(set) var isLoading = false
 
     // Rewarded Ad Unit ID
     #if DEBUG
@@ -27,6 +33,13 @@ class AdManager: NSObject, ObservableObject {
 
     private var rewardedAd: RewardedAd?
     private var rewardCompletion: (() -> Void)?
+    private var retryTask: Task<Void, Never>?
+    private var retryAttempt = 0
+    private var loadState: LoadState = .idle
+    private var loadedAt: Date?
+
+    private let retrySchedule: [TimeInterval] = [5, 15, 45]
+    private let adStaleAfter: TimeInterval = 60 * 50
 
     // MARK: - Init
 
@@ -36,12 +49,28 @@ class AdManager: NSObject, ObservableObject {
 
     // MARK: - Load
 
-    func loadAd() {
+    func loadAd(force: Bool = false) {
         guard ConsentInformation.shared.canRequestAds else {
-            isAdReady = false
+            clearAdState()
+            cancelScheduledRetry()
             return
         }
-        guard !isLoading else { return }
+
+        if !force {
+            switch loadState {
+            case .loading, .cooldown:
+                return
+            case .ready:
+                if let loadedAt, Date().timeIntervalSince(loadedAt) < adStaleAfter {
+                    return
+                }
+            case .idle:
+                break
+            }
+        }
+
+        cancelScheduledRetry()
+        loadState = .loading
         isLoading = true
         isAdReady = false
 
@@ -53,16 +82,25 @@ class AdManager: NSObject, ObservableObject {
                 guard let self else { return }
                 self.isLoading = false
                 if let error {
-                    print("[AdManager] Yüklenemedi: \(error.localizedDescription)")
-                    self.rewardedAd = nil
-                    self.isAdReady  = false
+                    self.handleLoadFailure(error)
                     return
                 }
                 self.rewardedAd = ad
                 self.rewardedAd?.fullScreenContentDelegate = self as FullScreenContentDelegate
+                self.loadedAt = Date()
+                self.retryAttempt = 0
+                self.loadState = .ready
                 self.isAdReady = true
             }
         }
+    }
+
+    func handleAppDidBecomeActive() {
+        guard ConsentInformation.shared.canRequestAds else { return }
+        if let loadedAt, isAdReady, Date().timeIntervalSince(loadedAt) >= adStaleAfter {
+            clearAdState()
+        }
+        loadAd()
     }
 
     // MARK: - Show
@@ -75,15 +113,56 @@ class AdManager: NSObject, ObservableObject {
                   .compactMap({ $0 as? UIWindowScene })
                   .first?.windows.first?.rootViewController
         else {
-            // Reklam hazır değilse yeniden yükle, kullanıcıyı bildir
             loadAd()
             return
         }
+
+        loadState = .ready
         rewardCompletion = onRewarded
         ad.present(from: rootVC) { [weak self] in
-            // Kullanıcı ödül kazandı
             self?.rewardCompletion?()
             self?.rewardCompletion = nil
+        }
+    }
+
+    private func handleLoadFailure(_ error: Error) {
+        print("[AdManager] Yüklenemedi: \(error.localizedDescription)")
+        clearAdState()
+        scheduleRetry()
+    }
+
+    private func scheduleRetry() {
+        guard ConsentInformation.shared.canRequestAds else { return }
+        guard retryTask == nil else { return }
+
+        loadState = .cooldown
+        let delay = retrySchedule[min(retryAttempt, retrySchedule.count - 1)]
+        retryAttempt += 1
+
+        retryTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            await MainActor.run {
+                guard let self else { return }
+                self.retryTask = nil
+                guard self.loadState == .cooldown else { return }
+                self.loadState = .idle
+                self.loadAd()
+            }
+        }
+    }
+
+    private func cancelScheduledRetry() {
+        retryTask?.cancel()
+        retryTask = nil
+    }
+
+    private func clearAdState() {
+        rewardedAd = nil
+        loadedAt = nil
+        isAdReady = false
+        isLoading = false
+        if loadState != .cooldown {
+            loadState = .idle
         }
     }
 }
@@ -93,18 +172,16 @@ class AdManager: NSObject, ObservableObject {
 extension AdManager: FullScreenContentDelegate {
     nonisolated func adDidDismissFullScreenContent(_ ad: FullScreenPresentingAd) {
         Task { @MainActor in
-            self.rewardedAd = nil
-            self.isAdReady  = false
-            self.loadAd()   // Sonraki gösterim için hazırla
+            self.clearAdState()
+            self.loadAd(force: true)
         }
     }
 
     nonisolated func ad(_ ad: FullScreenPresentingAd, didFailToPresentFullScreenContentWithError error: Error) {
         Task { @MainActor in
             print("[AdManager] Gösterilemedi: \(error.localizedDescription)")
-            self.rewardedAd = nil
-            self.isAdReady  = false
-            self.loadAd()
+            self.clearAdState()
+            self.scheduleRetry()
         }
     }
 }

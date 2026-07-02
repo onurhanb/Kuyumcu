@@ -20,6 +20,13 @@ struct SpinWheelView: View {
     @State private var resultReward: GameState.WheelReward?
     @State private var errorMessage: String?
 
+    private enum WheelStyle {
+        case cash
+        case rights
+        case fx
+        case gold
+    }
+
     private let pointerAngle: Double = -90
     private var segmentCount: Double { Double(GameState.WheelReward.allCases.count) }
     private var segmentAngle: Double { 360 / segmentCount }
@@ -59,12 +66,12 @@ struct SpinWheelView: View {
             }
             .padding(.horizontal, GDLSpacing.xl)
             .padding(.vertical, GDLSpacing.xl)
-            .background(Color.gdlCard)
+            .background(LinearGradient.gdlOuterSurface)
             .overlay(
-                RoundedRectangle(cornerRadius: GDLRadius.xxl)
-                    .stroke(Color.gdlStroke, lineWidth: 1)
+                RoundedRectangle(cornerRadius: GDLRadius.shellOuterRadius)
+                    .stroke(Color.gdlOuterSurfaceStroke, lineWidth: 1)
             )
-            .clipShape(RoundedRectangle(cornerRadius: GDLRadius.xxl))
+            .clipShape(RoundedRectangle(cornerRadius: GDLRadius.shellOuterRadius))
             .shadow(color: .black.opacity(0.4), radius: 24, x: 0, y: 8)
             .padding(.horizontal, 24)
         }
@@ -97,51 +104,86 @@ struct SpinWheelView: View {
     private var wheelSection: some View {
         VStack(spacing: GDLSpacing.md) {
             TrianglePointer()
-                .fill(LinearGradient.gdlGoldButton)
+                .fill(pointerFill)
                 .frame(width: 26, height: 18)
                 .overlay(
                     TrianglePointer()
-                        .stroke(Color.white.opacity(0.16), lineWidth: 1)
+                        .stroke(Color.white.opacity(0.34), lineWidth: 0.9)
                 )
-                .shadow(color: .black.opacity(0.25), radius: 6, x: 0, y: 2)
+                .shadow(color: Color.gdlGold.opacity(0.18), radius: 6, x: 0, y: 1)
+                .shadow(color: .black.opacity(0.32), radius: 8, x: 0, y: 3)
 
             GeometryReader { proxy in
                 let side = min(proxy.size.width, proxy.size.height)
                 ZStack {
+                    Circle()
+                        .fill(
+                            RadialGradient(
+                                colors: [
+                                    Color.white.opacity(0.08),
+                                    Color.clear
+                                ],
+                                center: .center,
+                                startRadius: side * 0.08,
+                                endRadius: side * 0.48
+                            )
+                        )
+                        .frame(width: side, height: side)
+
                     ForEach(wheelSegments) { segment in
                         WheelSegmentShape(
                             startAngle: .degrees(segment.startAngle),
                             endAngle: .degrees(segment.endAngle)
                         )
-                        .fill(segmentColor(for: segment.reward))
+                        .fill(segmentFill(for: segment.reward))
 
                         WheelSegmentShape(
                             startAngle: .degrees(segment.startAngle),
                             endAngle: .degrees(segment.endAngle)
                         )
-                        .stroke(Color.gdlCard, lineWidth: 1)
+                        .fill(segmentHighlight)
+
+                        WheelSegmentShape(
+                            startAngle: .degrees(segment.startAngle),
+                            endAngle: .degrees(segment.endAngle)
+                        )
+                        .stroke(segmentDividerColor, lineWidth: 0.8)
+
+                        WheelSegmentShape(
+                            startAngle: .degrees(segment.startAngle),
+                            endAngle: .degrees(segment.endAngle)
+                        )
+                        .stroke(Color.white.opacity(0.08), lineWidth: 0.35)
 
                         segmentLabel(for: segment, size: side)
                     }
 
                     Circle()
-                        .stroke(AngularGradient.gdlGoldRing, lineWidth: 2)
+                        .stroke(AngularGradient.gdlChampagneRing, lineWidth: 3)
 
                     Circle()
-                        .stroke(AngularGradient.gdlGoldRing, lineWidth: 2)
+                        .stroke(Color.white.opacity(0.12), lineWidth: 0.8)
+                        .padding(side * 0.02)
+
+                    Circle()
+                        .stroke(AngularGradient.gdlGoldRing, lineWidth: 2.2)
                         .frame(width: side * 0.24, height: side * 0.24)
 
                     Circle()
-                        .fill(Color.gdlCard)
+                        .fill(centerFill)
                         .frame(width: side * 0.24, height: side * 0.24)
                         .overlay(
                             Circle()
-                                .stroke(Color.gdlStroke, lineWidth: 1)
+                                .stroke(AngularGradient.gdlChampagneRing, lineWidth: 1.2)
                         )
 
                     Circle()
-                        .fill(Color.gdlGold)
+                        .fill(LinearGradient.gdlGoldButton)
                         .frame(width: side * 0.08, height: side * 0.08)
+                        .overlay(
+                            Circle()
+                                .stroke(Color.white.opacity(0.35), lineWidth: 0.6)
+                        )
                 }
                 .frame(width: side, height: side)
                 .rotationEffect(.degrees(wheelRotation))
@@ -233,16 +275,116 @@ struct SpinWheelView: View {
         return wheelRotation + 2160 + delta
     }
 
-    private func segmentColor(for reward: GameState.WheelReward) -> Color {
+    private var pointerFill: LinearGradient {
+        LinearGradient(
+            colors: [
+                Color.white.opacity(0.94),
+                Color.gdlGoldLight,
+                Color.gdlGold,
+                Color(red: 0.73, green: 0.56, blue: 0.17)
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+
+    private var centerFill: RadialGradient {
+        RadialGradient(
+            colors: [
+                Color(red: 0.20, green: 0.18, blue: 0.17),
+                Color(red: 0.10, green: 0.10, blue: 0.12),
+                Color.black.opacity(0.96)
+            ],
+            center: .center,
+            startRadius: 2,
+            endRadius: 44
+        )
+    }
+
+    private var segmentDividerColor: Color {
+        Color(red: 0.96, green: 0.87, blue: 0.58).opacity(0.68)
+    }
+
+    private var segmentHighlight: RadialGradient {
+        RadialGradient(
+            colors: [
+                Color.white.opacity(0.20),
+                Color.white.opacity(0.07),
+                Color.clear
+            ],
+            center: .center,
+            startRadius: 0,
+            endRadius: 120
+        )
+    }
+
+    private func wheelStyle(for reward: GameState.WheelReward) -> WheelStyle {
         switch reward.accentColorName {
         case "cash":
-            return Color.gdlGold.opacity(0.9)
+            return .cash
         case "rights":
-            return Color.gdlPositive.opacity(0.9)
+            return .rights
         case "fx":
-            return Color(red: 0.23, green: 0.55, blue: 0.92)
+            return .fx
         default:
-            return Color(red: 0.86, green: 0.56, blue: 0.18)
+            return .gold
+        }
+    }
+
+    private func segmentFill(for reward: GameState.WheelReward) -> AnyShapeStyle {
+        switch wheelStyle(for: reward) {
+        case .cash:
+            return AnyShapeStyle(
+                RadialGradient(
+                    colors: [
+                        Color(red: 1.00, green: 0.93, blue: 0.67),
+                        Color(red: 0.90, green: 0.66, blue: 0.18),
+                        Color(red: 0.68, green: 0.46, blue: 0.08)
+                    ],
+                    center: .center,
+                    startRadius: 0,
+                    endRadius: 180
+                )
+            )
+        case .rights:
+            return AnyShapeStyle(
+                RadialGradient(
+                    colors: [
+                        Color(red: 0.82, green: 0.96, blue: 0.84),
+                        Color(red: 0.24, green: 0.63, blue: 0.42),
+                        Color(red: 0.08, green: 0.33, blue: 0.24)
+                    ],
+                    center: .center,
+                    startRadius: 0,
+                    endRadius: 180
+                )
+            )
+        case .fx:
+            return AnyShapeStyle(
+                RadialGradient(
+                    colors: [
+                        Color(red: 0.84, green: 0.90, blue: 0.98),
+                        Color(red: 0.28, green: 0.53, blue: 0.81),
+                        Color(red: 0.12, green: 0.23, blue: 0.38)
+                    ],
+                    center: .center,
+                    startRadius: 0,
+                    endRadius: 180
+                )
+            )
+        case .gold:
+            return AnyShapeStyle(
+                RadialGradient(
+                    colors: [
+                        Color(red: 0.96, green: 0.82, blue: 0.58),
+                        Color(red: 0.70, green: 0.49, blue: 0.20),
+                        Color(red: 0.41, green: 0.27, blue: 0.11)
+                    ],
+                    center: .center,
+                    startRadius: 0,
+                    endRadius: 180
+                )
+            )
         }
     }
 
@@ -254,7 +396,8 @@ struct SpinWheelView: View {
 
         return Text(segment.shortLabel)
             .font(.system(size: size * 0.043, weight: .bold, design: .rounded))
-            .foregroundColor(.black.opacity(0.82))
+            .foregroundColor(Color(red: 0.98, green: 0.94, blue: 0.84))
+            .shadow(color: .black.opacity(0.28), radius: 1, x: 0, y: 1)
             .lineLimit(1)
             .minimumScaleFactor(0.7)
             .frame(width: size * 0.19)

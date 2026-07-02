@@ -79,7 +79,7 @@ struct MainTabView: View {
                     .background(
                         ZStack {
                             if selectedTab == index {
-                                RoundedRectangle(cornerRadius: GDLRadius.lg)
+                                RoundedRectangle(cornerRadius: GDLRadius.shellOuterRadius)
                                     .fill(
                                         LinearGradient(
                                             colors: [
@@ -90,10 +90,10 @@ struct MainTabView: View {
                                             endPoint: .bottom
                                         )
                                     )
-                                RoundedRectangle(cornerRadius: GDLRadius.lg)
+                                RoundedRectangle(cornerRadius: GDLRadius.shellOuterRadius)
                                     .stroke(Color.gdlGold.opacity(0.42), lineWidth: 1)
                             } else {
-                                RoundedRectangle(cornerRadius: GDLRadius.lg)
+                                RoundedRectangle(cornerRadius: GDLRadius.shellOuterRadius)
                                     .fill(Color.clear)
                             }
                         }
@@ -107,21 +107,12 @@ struct MainTabView: View {
         .padding(.top, GDLSpacing.xs)
         .padding(.bottom, GDLSpacing.sm)
         .background(
-            RoundedRectangle(cornerRadius: GDLRadius.xxl)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color.gdlBackgroundTop.opacity(0.98),
-                            Color.gdlCard.opacity(0.98)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
+            RoundedRectangle(cornerRadius: GDLRadius.shellOuterRadius)
+                .fill(LinearGradient.gdlOuterSurface)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: GDLRadius.xxl)
-                .stroke(Color.gdlStroke, lineWidth: 1)
+            RoundedRectangle(cornerRadius: GDLRadius.shellOuterRadius)
+                .stroke(Color.gdlOuterSurfaceStroke, lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.34), radius: 18, x: 0, y: 8)
     }

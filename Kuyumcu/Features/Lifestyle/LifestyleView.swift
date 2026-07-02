@@ -148,7 +148,7 @@ struct LifestyleItemCard: View {
             }
         }
         .padding(14)
-        .gdlCard(radius: GDLRadius.lg)
+        .gdlCard()
         .opacity(item.isOwned ? 0.7 : 1.0)
     }
 

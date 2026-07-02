@@ -337,7 +337,12 @@ struct ShopCard: View {
                     .frame(maxWidth: .infinity)
                     .frame(height: 110)
                     .clipped()
-                    .cornerRadius(10)
+                    .clipShape(RoundedRectangle(cornerRadius: GDLRadius.sm))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: GDLRadius.sm)
+                            .stroke(Color.gdlOuterSurfaceStroke, lineWidth: 1)
+                    )
+                    .shadow(color: .black.opacity(0.18), radius: 8, x: 0, y: 5)
             }
 
             // Üst satır: ikon + isim/konum + buton

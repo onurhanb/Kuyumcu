@@ -182,12 +182,12 @@ struct CounterView: View {
         .padding(.horizontal, GDLSpacing.sm)
         .padding(.top, GDLSpacing.xs)
         .padding(.bottom, GDLSpacing.xs)
-        .background(Color.gdlCard)
+        .background(LinearGradient.gdlOuterSurface)
         .overlay(
-            RoundedRectangle(cornerRadius: GDLRadius.lg)
-                .stroke(Color.gdlStroke, lineWidth: 1)
+            RoundedRectangle(cornerRadius: GDLRadius.cardOuterRadius)
+                .stroke(Color.gdlOuterSurfaceStroke, lineWidth: 1)
         )
-        .clipShape(RoundedRectangle(cornerRadius: GDLRadius.lg))
+        .clipShape(RoundedRectangle(cornerRadius: GDLRadius.cardOuterRadius))
     }
 
     private func summaryItem(icon: String, label: String, value: String, valueColor: Color) -> some View {
@@ -250,7 +250,7 @@ struct CounterView: View {
             let rightW = W - leftW
 
             ZStack(alignment: .topLeading) {
-                RoundedRectangle(cornerRadius: GDLRadius.xxl)
+                RoundedRectangle(cornerRadius: GDLRadius.shellOuterRadius)
                     .fill(Color(red: 0.10, green: 0.08, blue: 0.04))
                     .frame(width: W, height: sceneHeight)
 
@@ -409,10 +409,10 @@ struct CounterView: View {
         }
         .frame(height: sceneHeight)
         .clipped()
-        .clipShape(RoundedRectangle(cornerRadius: GDLRadius.xxl))
+        .clipShape(RoundedRectangle(cornerRadius: GDLRadius.shellOuterRadius))
         .overlay(
-            RoundedRectangle(cornerRadius: GDLRadius.xxl)
-                .stroke(Color.gdlStroke, lineWidth: 1)
+            RoundedRectangle(cornerRadius: GDLRadius.shellOuterRadius)
+                .stroke(Color.gdlOuterSurfaceStroke, lineWidth: 1)
         )
         .shadow(color: .gdlShadow, radius: 18, x: 0, y: 10)
     }
@@ -469,12 +469,12 @@ struct CounterView: View {
             }
             .padding(.horizontal, GDLSpacing.md)
             .padding(.vertical, GDLSpacing.sm)
-            .background(Color.gdlCard)
+            .background(LinearGradient.gdlOuterSurface)
             .overlay(
-                RoundedRectangle(cornerRadius: GDLRadius.lg)
-                    .stroke(Color.gdlStroke, lineWidth: 1)
+                RoundedRectangle(cornerRadius: GDLRadius.cardOuterRadius)
+                    .stroke(Color.gdlOuterSurfaceStroke, lineWidth: 1)
             )
-            .clipShape(RoundedRectangle(cornerRadius: GDLRadius.lg))
+            .clipShape(RoundedRectangle(cornerRadius: GDLRadius.cardOuterRadius))
         }
     }
 
@@ -530,12 +530,12 @@ struct CounterView: View {
             }
         }
         .padding(GDLSpacing.md)
-        .background(Color.gdlCard)
+        .background(LinearGradient.gdlOuterSurface)
         .overlay(
-            RoundedRectangle(cornerRadius: GDLRadius.lg)
-                .stroke(Color.gdlStroke, lineWidth: 1)
+            RoundedRectangle(cornerRadius: GDLRadius.cardOuterRadius)
+                .stroke(Color.gdlOuterSurfaceStroke, lineWidth: 1)
         )
-        .clipShape(RoundedRectangle(cornerRadius: GDLRadius.lg))
+        .clipShape(RoundedRectangle(cornerRadius: GDLRadius.cardOuterRadius))
     }
 
     // MARK: - Empty Queue

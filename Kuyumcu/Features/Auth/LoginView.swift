@@ -15,24 +15,19 @@ struct LoginView: View {
             VStack(spacing: 0) {
                 Spacer()
 
-                // Logo + başlık
+                // Başlık
                 VStack(spacing: 16) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 24)
-                            .fill(Color.gdlCard)
-                            .frame(width: 100, height: 100)
-                        Image(systemName: "scalemass.fill")
-                            .font(.system(size: 48))
-                            .foregroundColor(.gdlGold)
-                    }
-
                     VStack(spacing: 6) {
-                        Text("Gold Dealer Life")
+                        Text("Kuyumcu")
                             .font(.system(size: 28, weight: .bold, design: .rounded))
-                            .foregroundColor(.gdlGold)
-                        Text("Kuyumcu Simülasyonu")
+                            .foregroundStyle(LinearGradient.gdlGoldButton)
+                        Text("Ticaret Simülasyonu")
                             .font(.system(size: 15))
                             .foregroundColor(.gdlTextSecondary)
+                        Capsule()
+                            .fill(LinearGradient.gdlGoldButton)
+                            .frame(width: 120, height: 2)
+                            .padding(.top, 8)
                     }
                 }
 
@@ -40,7 +35,6 @@ struct LoginView: View {
 
                 // Giriş butonları
                 VStack(spacing: 12) {
-
                     // Apple — aktif
                     loginButton(
                         icon: "apple.logo",
@@ -61,7 +55,7 @@ struct LoginView: View {
                             .padding(.top, 4)
                     }
 
-                    Text("Giriş yaparak ilerlemeniz buluta kaydedilir.")
+                    Text("Üyeliğinizi dilediğiniz zaman silebilirsiniz.")
                         .font(.system(size: 11))
                         .foregroundColor(.gdlTextSecondary.opacity(0.6))
                         .multilineTextAlignment(.center)
@@ -156,10 +150,10 @@ struct LoginView: View {
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 16)
-            .background(style == .card ? Color.gdlCard.opacity(disabled ? 0.5 : 1) : Color.clear)
+            .background(style == .card ? Color.gdlCardSecondary.opacity(disabled ? 0.5 : 1) : Color.clear)
             .overlay(
                 RoundedRectangle(cornerRadius: 14)
-                    .stroke(style == .ghost ? Color.gdlDivider : Color.clear, lineWidth: 1)
+                    .stroke(style == .ghost ? Color.gdlDivider : Color.gdlOuterSurfaceStroke, lineWidth: 1)
             )
             .cornerRadius(14)
         }

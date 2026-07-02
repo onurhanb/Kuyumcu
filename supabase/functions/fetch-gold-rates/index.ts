@@ -9,10 +9,14 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const SUPABASE_URL     = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const SOURCE_URL        = "https://finans.truncgil.com/today.json";
+const SOURCE_TIMEOUT_MS = 12_000;
+const SOURCE_RETRY_DELAYS_MS = [1_500, 4_000];
 
 Deno.serve(async (_req) => {
   try {
+    console.log("[fetch-gold-rates] scheduled run started");
     const rates = await scrapeRates();
+    console.log("[fetch-gold-rates] rates fetched successfully");
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE);
     const { error } = await supabase.from("gold_rates").upsert({
@@ -40,6 +44,7 @@ Deno.serve(async (_req) => {
     }, { onConflict: "id" });
 
     if (error) throw error;
+    console.log("[fetch-gold-rates] gold_rates updated");
 
     const fetchedAt = new Date();
     const snapshotDate = new Intl.DateTimeFormat("en-CA", {
@@ -56,8 +61,23 @@ Deno.serve(async (_req) => {
       p_eur_buy: rates.eurBuy,
     });
     if (leaderboardError) throw leaderboardError;
+    console.log("[fetch-gold-rates] leaderboard snapshot refreshed");
 
-    const notification = await sendDailyRateNotifications(supabase, rates);
+    let notification:
+      { attempted: number; sent: number; failed: number; skipped?: string }
+      | { attempted: number; sent: number; failed: number; error: string };
+    try {
+      notification = await sendDailyRateNotifications(supabase, rates);
+      console.log("[fetch-gold-rates] push notifications completed", notification);
+    } catch (notificationError) {
+      notification = {
+        attempted: 0,
+        sent: 0,
+        failed: 0,
+        error: String(notificationError),
+      };
+      console.error("[fetch-gold-rates] push notification step failed:", notificationError);
+    }
 
     return new Response(
       JSON.stringify({ success: true, rates, notification }),
@@ -252,11 +272,7 @@ function base64UrlEncode(input: string | ArrayBuffer): string {
 }
 
 async function scrapeRates(): Promise<Rates> {
-  const res  = await fetch(SOURCE_URL, {
-    headers: { "Accept-Encoding": "identity", "Accept": "application/json" },
-  });
-  if (!res.ok) throw new Error(`API yanıt vermedi: ${res.status}`);
-  const data = await res.json();
+  const data = await fetchJSONWithRetry<Record<string, Record<string, string>>>(SOURCE_URL);
 
   const parsePrice = (raw: string): number =>
     parseFloat(raw.replace(/\./g, "").replace(",", "."));
@@ -312,4 +328,65 @@ async function scrapeRates(): Promise<Rates> {
     usdBuy,     usdSell,     usdChangeDir,
     eurBuy,     eurSell,     eurChangeDir,
   };
+}
+
+async function fetchJSONWithRetry<T>(url: string): Promise<T> {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt <= SOURCE_RETRY_DELAYS_MS.length; attempt += 1) {
+    try {
+      return await fetchJSONOnce<T>(url, attempt + 1);
+    } catch (error) {
+      lastError = error;
+      const hasMoreAttempts = attempt < SOURCE_RETRY_DELAYS_MS.length;
+      console.error(`[fetch-gold-rates] source fetch attempt ${attempt + 1} failed:`, error);
+      if (!hasMoreAttempts) break;
+
+      const delayMs = SOURCE_RETRY_DELAYS_MS[attempt];
+      await sleep(delayMs);
+    }
+  }
+
+  throw new Error(`Rates source failed after retries: ${String(lastError)}`);
+}
+
+async function fetchJSONOnce<T>(url: string, attempt: number): Promise<T> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort("timeout"), SOURCE_TIMEOUT_MS);
+
+  try {
+    const res = await fetch(url, {
+      headers: {
+        "Accept-Encoding": "identity",
+        "Accept": "application/json",
+      },
+      signal: controller.signal,
+    });
+
+    if (!res.ok) {
+      throw new Error(`API yanıt vermedi: ${res.status}`);
+    }
+
+    const rawText = await res.text();
+    if (!rawText.trim()) {
+      throw new Error(`Boş yanıt gövdesi alındı (attempt ${attempt})`);
+    }
+
+    try {
+      return JSON.parse(rawText) as T;
+    } catch (parseError) {
+      throw new Error(`JSON parse başarısız (attempt ${attempt}): ${String(parseError)}`);
+    }
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error(`Rates source timeout after ${SOURCE_TIMEOUT_MS}ms (attempt ${attempt})`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

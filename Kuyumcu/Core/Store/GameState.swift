@@ -170,14 +170,20 @@ class GameState: ObservableObject {
     @Published var cloudSyncUpdatedAt: Date?
 
     static let dailyRewardAmounts: [Int: Double] = [
-        1: 5_000, 2: 10_000, 4: 20_000,
-        5: 25_000, 7: 100_000
+        1: 5_000,
+        3: 15_000,
+        5: 35_000,
+        7: 50_000
     ]
 
     static func dailyRewardKind(for day: Int) -> DailyRewardKind {
         switch day {
-        case 3, 6:
+        case 2:
             return .spinRights(1)
+        case 4:
+            return .spinRights(2)
+        case 6:
+            return .spinRights(3)
         default:
             return .cash(dailyRewardAmounts[day] ?? 0)
         }
@@ -870,10 +876,12 @@ class GameState: ObservableObject {
         if customerQueue.count >= cap {
             return
         }
-        let locationType = activeShop?.locationType ?? .neighborhood
+        let currentShop = activeShop
+        let locationType = currentShop?.locationType ?? .neighborhood
         let newCustomer = CustomerLibrary.generateCustomer(
             for: locationType,
-            vipModifier: eventVIPMultiplier
+            vipModifier: eventVIPMultiplier,
+            shopVIPChance: currentShop?.vipChance ?? 0
         )
         customerQueue.append(newCustomer)
         if currentCustomer == nil {
@@ -883,7 +891,10 @@ class GameState: ObservableObject {
 
     private func scheduleNextCustomerArrival() {
         arrivalTask?.cancel()
-        let delay = Double.random(in: 4...8)
+        let baseDelay = Double.random(in: 4...8)
+        let shopTrafficMultiplier = max(activeShop?.customerTrafficMultiplier ?? 1.0, 0.1)
+        let effectiveTraffic = max(shopTrafficMultiplier * eventTrafficMultiplier, 0.1)
+        let delay = min(8.0, max(1.75, baseDelay / effectiveTraffic))
         arrivalTask = Task { [weak self] in
             let nanoseconds = UInt64(delay * 1_000_000_000)
             try? await Task.sleep(nanoseconds: nanoseconds)

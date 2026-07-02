@@ -368,8 +368,8 @@ struct QuickTradeDialog: View {
             .padding(.horizontal, 18)
             .padding(.vertical, 16)
         }
-        .background(Color.gdlCard)
-        .clipShape(RoundedRectangle(cornerRadius: GDLRadius.xxl))
+        .background(LinearGradient.gdlOuterSurface)
+        .clipShape(RoundedRectangle(cornerRadius: GDLRadius.shellOuterRadius))
         .shadow(color: .black.opacity(0.4), radius: 24, x: 0, y: 8)
     }
 
