@@ -482,13 +482,13 @@ enum CustomerLibrary {
         case .bazaar:
             weights = [.regular: 3, .frugal: 2, .generous: 2, .urgent: 2, .tourist: 1, .vip: 0]
         case .districtBazaar:
-            weights = [.regular: 3, .frugal: 2, .generous: 2, .urgent: 2, .tourist: 1, .vip: 1]
+            weights = [.regular: 3, .frugal: 2, .generous: 2, .urgent: 2, .tourist: 2, .vip: 0]
         case .cityCenter:
             weights = [.regular: 2, .frugal: 1, .generous: 2, .urgent: 2, .tourist: 2, .vip: 1]
         case .mall:
-            weights = [.regular: 2, .frugal: 1, .generous: 2, .urgent: 1, .tourist: 3, .vip: 2]
+            weights = [.regular: 2, .frugal: 1, .generous: 3, .urgent: 1, .tourist: 2, .vip: 2]
         case .grandBazaar:
-            weights = [.regular: 1, .frugal: 1, .generous: 2, .urgent: 1, .tourist: 2, .vip: 4]
+            weights = [.regular: 1, .frugal: 1, .generous: 2, .urgent: 1, .tourist: 3, .vip: 3]
         }
 
         let shopVIPFactor = 1.0 + (max(0.0, shopVIPChance) * 3.0)

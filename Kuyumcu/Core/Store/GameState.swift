@@ -8,6 +8,7 @@ enum CloudSyncStatus {
     case failed
 }
 
+@MainActor
 class GameState: ObservableObject {
     enum DailyRewardKind {
         case cash(Double)
@@ -132,6 +133,8 @@ class GameState: ObservableObject {
     @Published var dailyProfit: Double
     @Published var weeklyProfit: Double
     @Published var monthlyRevenue: Double
+    @Published var taxDebt: Double
+    @Published var lastTaxChargedDay: Int
     @Published var currentDay: Int
     @Published var passiveIncomeBalance: Double = 0
     @Published var passiveIncomeUpdatedAt: Date = Date()
@@ -165,6 +168,7 @@ class GameState: ObservableObject {
     @Published var dailyRewardClaimedAt: Date? = nil // son alım tarihi
     @Published var entryRightsRefreshedAt: Date? = nil
     @Published var profitDayAnchorAt: Date? = nil
+    @Published var saveRevision: Int64 = 0
     @Published var cloudSyncStatus: CloudSyncStatus = .idle
     @Published var cloudSyncErrorMessage: String?
     @Published var cloudSyncUpdatedAt: Date?
@@ -186,6 +190,20 @@ class GameState: ObservableObject {
             return .spinRights(3)
         default:
             return .cash(dailyRewardAmounts[day] ?? 0)
+        }
+    }
+
+    static func taxRate(for profit: Double) -> Double {
+        guard profit > 0 else { return 0 }
+        switch profit {
+        case ...1_000_000:
+            return 0.10
+        case ...5_000_000:
+            return 0.18
+        case ...10_000_000:
+            return 0.25
+        default:
+            return 0.30
         }
     }
 
@@ -245,8 +263,7 @@ class GameState: ObservableObject {
         }
         dailyRewardDay = day
         dailyRewardClaimedAt = Date()
-        GameSaveService.save(self)
-        Task { await SupabaseSaveService.save(self) }
+        persistChanges()
     }
 
     func syncEntryRightsIfNeeded(at date: Date = Date()) {
@@ -262,7 +279,15 @@ class GameState: ObservableObject {
 
     var canEnterShop: Bool {
         syncEntryRightsIfNeeded()
-        return entryRightsRemaining > 0
+        return entryRightsRemaining > 0 && !hasOutstandingTax
+    }
+
+    var hasOutstandingTax: Bool {
+        taxDebt > 0
+    }
+
+    var canPayTax: Bool {
+        playerCash >= taxDebt && taxDebt > 0
     }
 
     var canSpinWheel: Bool {
@@ -283,8 +308,22 @@ class GameState: ObservableObject {
     func refreshEntryRightsFromAd(at date: Date = Date()) {
         entryRightsRemaining = 3
         entryRightsRefreshedAt = date
-        GameSaveService.save(self)
-        Task { await SupabaseSaveService.save(self) }
+        persistChanges()
+    }
+
+    func calculateTax(for profit: Double) -> Double {
+        let rate = Self.taxRate(for: profit)
+        guard rate > 0 else { return 0 }
+        return (profit * rate).rounded()
+    }
+
+    @discardableResult
+    func payTax() -> Bool {
+        guard canPayTax else { return false }
+        guard spendCash(taxDebt) else { return false }
+        taxDebt = 0
+        persistChanges()
+        return true
     }
 
     func applyWheelReward(_ reward: WheelReward) {
@@ -332,8 +371,7 @@ class GameState: ObservableObject {
         totalProfit += rewardValue
 
         if persistsChanges {
-            GameSaveService.save(self)
-            Task { await SupabaseSaveService.save(self) }
+            persistChanges()
         }
     }
 
@@ -387,6 +425,7 @@ class GameState: ObservableObject {
 
             yesterdayCash = playerCash
             for _ in 0..<dayDelta {
+                applyDailyTaxIfNeeded()
                 currentDay += 1
                 dailyProfit = 0
                 if currentDay % 7 == 0 { weeklyProfit = 0 }
@@ -398,17 +437,14 @@ class GameState: ObservableObject {
         profitDayAnchorAt = date
 
         if didChange && persistsChanges {
-            GameSaveService.save(self)
-            if syncsCloud {
-                Task { await SupabaseSaveService.save(self) }
-            }
+            persistChanges(syncCloud: syncsCloud)
         }
 
         return didChange
     }
 
     func retryCloudSync() {
-        Task { await SupabaseSaveService.save(self) }
+        persistChanges(bumpRevision: false)
     }
 
     // MARK: - Init
@@ -428,6 +464,8 @@ class GameState: ObservableObject {
         self.dailyProfit                 = 0
         self.weeklyProfit                = 0
         self.monthlyRevenue              = 0
+        self.taxDebt                     = 0
+        self.lastTaxChargedDay           = 0
         self.currentDay  = 1
         self.activeEvents = GameSeedData.allEvents
         self.totalTransactions           = 0
@@ -534,11 +572,11 @@ class GameState: ObservableObject {
         guard income > 0 else { return }
         receiveCash(income)
         dailyProfit += income
+        weeklyProfit += income
         totalProfit += income
         passiveIncomeBalance = 0
         passiveIncomeUpdatedAt = now
-        GameSaveService.save(self)
-        Task { await SupabaseSaveService.save(self) }
+        persistChanges()
     }
 
     func hireEmployee(shopId: UUID) {
@@ -565,12 +603,12 @@ class GameState: ObservableObject {
         if activeShop?.id == shopId {
             activeShop = ownedShops[idx]
         }
-        GameSaveService.save(self)
-        Task { await SupabaseSaveService.save(self) }
+        persistChanges()
     }
 
     func advanceDay() {
         yesterdayCash = playerCash
+        applyDailyTaxIfNeeded()
         currentDay   += 1
         dailyProfit   = 0
         profitDayAnchorAt = Date()
@@ -578,8 +616,7 @@ class GameState: ObservableObject {
         if currentDay % 7  == 0 { weeklyProfit   = 0 }
         if currentDay % 30 == 0 { monthlyRevenue  = 0 }
         startArrivalTimer()
-        GameSaveService.save(self)
-        Task { await SupabaseSaveService.save(self) }
+        persistChanges()
     }
 
     // MARK: - Quick Trade (komisyonsuz toptancı)
@@ -629,8 +666,7 @@ class GameState: ObservableObject {
         dailyProfit += profitDelta
         weeklyProfit += profitDelta
         totalProfit += profitDelta
-        GameSaveService.save(self)
-        Task { await SupabaseSaveService.save(self) }
+        persistChanges()
     }
 
     // MARK: - Reset Game
@@ -661,6 +697,8 @@ class GameState: ObservableObject {
         dailyProfit                 = 0
         weeklyProfit                = 0
         monthlyRevenue              = 0
+        taxDebt                     = 0
+        lastTaxChargedDay           = 0
         currentDay        = 1
         passiveIncomeBalance        = 0
         passiveIncomeUpdatedAt      = Date()
@@ -678,13 +716,13 @@ class GameState: ObservableObject {
         customerQueue               = []
         currentCustomer             = nil
         if persistsChanges {
-            GameSaveService.save(self)
+            persistChanges(syncCloud: false)
         } else {
             GameSaveService.reset()
         }
         startArrivalTimer()
         if syncsCloud {
-            Task { await SupabaseSaveService.save(self) }
+            SupabaseSaveService.enqueueSave(self)
         }
     }
 
@@ -718,8 +756,7 @@ class GameState: ObservableObject {
         acceptedDeals   += 1
         isBargaining     = false
         advanceCustomer()
-        GameSaveService.save(self)
-        Task { await SupabaseSaveService.save(self) }
+        persistChanges()
         return true
     }
 
@@ -728,8 +765,7 @@ class GameState: ObservableObject {
         rejectedDeals     += 1
         isBargaining       = false
         advanceCustomer()
-        GameSaveService.save(self)
-        Task { await SupabaseSaveService.save(self) }
+        persistChanges()
     }
 
     func processBargain() {
@@ -740,16 +776,14 @@ class GameState: ObservableObject {
     func processTimerExpired() {
         isBargaining = false
         advanceCustomer()
-        GameSaveService.save(self)
-        Task { await SupabaseSaveService.save(self) }
+        persistChanges()
     }
 
     /// Aktif dükkanı değiştirir, o dükkanın lokasyonuna göre müşteri kuyruğu oluşturur.
     func enterShop(_ shop: Shop) {
         activeShop = shop
         startArrivalTimer()
-        GameSaveService.save(self)
-        Task { await SupabaseSaveService.save(self) }
+        persistChanges()
     }
 
     func advanceCustomer() {
@@ -767,8 +801,7 @@ class GameState: ObservableObject {
         purchased.isOwned  = true
         lockedShops.removeAll { $0.id == shop.id }
         ownedShops.append(purchased)
-        GameSaveService.save(self)
-        Task { await SupabaseSaveService.save(self) }
+        persistChanges()
     }
 
     func buyLifestyleItem(_ item: LifestyleItem) {
@@ -776,9 +809,8 @@ class GameState: ObservableObject {
         if let idx = lifestyleItems.firstIndex(where: { $0.id == item.id }) {
             lifestyleItems[idx].isOwned = true
         }
-        lifestyleScore += item.lifestylePoints
-        GameSaveService.save(self)
-        Task { await SupabaseSaveService.save(self) }
+        recalculateLifestyleScore()
+        persistChanges()
     }
 
     // MARK: - Stock Check
@@ -956,6 +988,34 @@ class GameState: ObservableObject {
         case .fullGold: inventory.fullGold += delta
         case .usd: inventory.usd += delta
         case .eur: inventory.eur += delta
+        }
+    }
+
+    func recalculateLifestyleScore() {
+        lifestyleScore = lifestyleItems
+            .filter(\.isOwned)
+            .reduce(0) { $0 + $1.lifestylePoints }
+    }
+
+    private func applyDailyTaxIfNeeded() {
+        guard currentDay > lastTaxChargedDay else { return }
+
+        let closedDayProfit = dailyProfit
+        let taxAmount = calculateTax(for: closedDayProfit)
+        if taxAmount > 0 {
+            taxDebt += taxAmount
+        }
+
+        lastTaxChargedDay = currentDay
+    }
+
+    private func persistChanges(syncCloud: Bool = true, bumpRevision: Bool = true) {
+        if bumpRevision {
+            saveRevision += 1
+        }
+        GameSaveService.save(self)
+        if syncCloud {
+            SupabaseSaveService.enqueueSave(self)
         }
     }
 }

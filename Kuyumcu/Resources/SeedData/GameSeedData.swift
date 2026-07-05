@@ -42,10 +42,10 @@ struct GameSeedData {
             LifestyleItem(name: "Orta Sınıf Araç",       category: .vehicle,    price:1_500_000, lifestylePoints:  4, icon: "car.fill"),
             LifestyleItem(name: "SUV",                   category: .vehicle,    price:3_000_000, lifestylePoints:  6, icon: "car.fill"),
             LifestyleItem(name: "Tekne",                 category: .vehicle,    price:8_000_000, lifestylePoints: 10, icon: "sailboat.fill"),
-            LifestyleItem(name: "Lüks Sedan",            category: .vehicle,    price:6_000_000, lifestylePoints:  9, icon: "car.fill"),
+            LifestyleItem(name: "Lüks Sedan",            category: .vehicle,    price:10_000_000, lifestylePoints:  9, icon: "car.fill"),
             LifestyleItem(name: "Spor Araba",            category: .vehicle,    price:12_000_000, lifestylePoints: 12, icon: "car.fill"),
-            LifestyleItem(name: "Yat",                   category: .vehicle,    price:40_000_000, lifestylePoints: 22, icon: "sailboat.fill"),
-            LifestyleItem(name: "Helikopter",            category: .vehicle,    price:80_000_000, lifestylePoints: 32, icon: "airplane"),
+            LifestyleItem(name: "Yat",                   category: .vehicle,    price:50_000_000, lifestylePoints: 22, icon: "sailboat.fill"),
+            LifestyleItem(name: "Helikopter",            category: .vehicle,    price:100_000_000, lifestylePoints: 32, icon: "airplane"),
         ]
         // Gayrimenkul — oran: ~500.000 TL / puan (sqrt formülü)
         let realEstate: [LifestyleItem] = [
@@ -102,28 +102,28 @@ struct GameSeedData {
         Shop(id: UUID(), key: "bazaar_shop", name: "Çarşı Kuyumcusu",
              description: "Alışverişin tam kalbinde.",
              locationType: .bazaar, level: 1,
-             purchasePrice: 2_000_000,
+             purchasePrice: 5_000_000,
              customerTrafficMultiplier: 1.5,
              vipChance: 0.10, employeeCapacity: 4, employeeCount: 0, isOwned: false),
 
         Shop(id: UUID(), key: "district_bazaar_shop", name: "İlçe Kuyumcusu",
              description: "İlçenin güvenilir kuyumcusu.",
              locationType: .districtBazaar, level: 1,
-             purchasePrice: 4_000_000,
+             purchasePrice: 10_000_000,
              customerTrafficMultiplier: 2.0,
              vipChance: 0.15, employeeCapacity: 6, employeeCount: 0, isOwned: false),
 
         Shop(id: UUID(), key: "city_center_shop", name: "Şehir Merkezi Kuyumcusu",
              description: "Büyük adımlar, büyük kazançlar.",
              locationType: .cityCenter, level: 1,
-             purchasePrice: 10_000_000,
+             purchasePrice: 15_000_000,
              customerTrafficMultiplier: 2.5,
              vipChance: 0.20, employeeCapacity: 8, employeeCount: 0, isOwned: false),
 
         Shop(id: UUID(), key: "mall_shop", name: "AVM Kuyumcusu",
              description: "Prestijin yeni adresi.",
              locationType: .mall, level: 1,
-             purchasePrice: 15_000_000,
+             purchasePrice: 25_000_000,
              customerTrafficMultiplier: 3.0,
              vipChance: 0.25, employeeCapacity: 10, employeeCount: 0, isOwned: false),
 

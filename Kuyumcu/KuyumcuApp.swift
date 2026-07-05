@@ -52,7 +52,7 @@ struct KuyumcuApp: App {
                     // İlk kez giriş → dükkan adı al
                     ShopNameView { name in
                         gameState.shopName = name
-                        Task { await SupabaseSaveService.save(gameState) }
+                        SupabaseSaveService.enqueueSave(gameState)
                         needsShopSetup = false
                     }
 

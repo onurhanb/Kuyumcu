@@ -7,6 +7,7 @@ class GameSaveService {
 
     private static let key = "goldDealerLifeSave_v1"
 
+    @MainActor
     static func save(_ state: GameState) {
         let dict: [String: Any] = [
             "playerCash":                  state.playerCash,
@@ -22,6 +23,8 @@ class GameSaveService {
             "dailyProfit":                 state.dailyProfit,
             "weeklyProfit":                state.weeklyProfit,
             "monthlyRevenue":              state.monthlyRevenue,
+            "taxDebt":                     state.taxDebt,
+            "lastTaxChargedDay":           state.lastTaxChargedDay,
             "currentDay":                  state.currentDay,
             "passiveIncomeBalance":        state.passiveIncomeBalance,
             "passiveIncomeUpdatedAt":      state.passiveIncomeUpdatedAt.timeIntervalSince1970,
@@ -46,10 +49,12 @@ class GameSaveService {
             "dailyRewardClaimedAt":         state.dailyRewardClaimedAt?.timeIntervalSince1970 ?? -1,
             "entryRightsRefreshedAt":       state.entryRightsRefreshedAt?.timeIntervalSince1970 ?? -1,
             "profitDayAnchorAt":            state.profitDayAnchorAt?.timeIntervalSince1970 ?? -1,
+            "saveRevision":                 state.saveRevision,
         ]
         UserDefaults.standard.set(dict, forKey: key)
     }
 
+    @MainActor
     static func load(into state: GameState) {
         guard let dict = UserDefaults.standard.dictionary(forKey: key) else { return }
 
@@ -67,6 +72,8 @@ class GameSaveService {
         state.dailyProfit                 = dict["dailyProfit"]                 as? Double ?? state.dailyProfit
         state.weeklyProfit                = dict["weeklyProfit"]                as? Double ?? state.weeklyProfit
         state.monthlyRevenue              = dict["monthlyRevenue"]              as? Double ?? state.monthlyRevenue
+        state.taxDebt                     = dict["taxDebt"]                     as? Double ?? state.taxDebt
+        state.lastTaxChargedDay           = dict["lastTaxChargedDay"]           as? Int    ?? state.lastTaxChargedDay
         state.currentDay                  = dict["currentDay"]                  as? Int    ?? state.currentDay
         state.passiveIncomeBalance        = dict["passiveIncomeBalance"]        as? Double ?? state.passiveIncomeBalance
         if let savedTs = dict["passiveIncomeUpdatedAt"] as? Double, savedTs > 0 {
@@ -125,6 +132,7 @@ class GameSaveService {
                 state.lifestyleItems[i].isOwned = nameSet.contains(state.lifestyleItems[i].name)
             }
         }
+        state.recalculateLifestyleScore()
 
         // Daily reward yerel yedeği (sadece Supabase değerler boşsa kullanılır)
         if state.dailyRewardDay == 0,
@@ -143,8 +151,9 @@ class GameSaveService {
            let savedTs = dict["profitDayAnchorAt"] as? Double, savedTs > 0 {
             state.profitDayAnchorAt = Date(timeIntervalSince1970: savedTs)
         }
+        state.saveRevision = dict["saveRevision"] as? Int64 ?? Int64(dict["saveRevision"] as? Int ?? 0)
         state.syncEntryRightsIfNeeded()
-        state.syncProfitPeriodsIfNeeded()
+        state.syncProfitPeriodsIfNeeded(persistsChanges: true, syncsCloud: false)
     }
 
     static func reset() {

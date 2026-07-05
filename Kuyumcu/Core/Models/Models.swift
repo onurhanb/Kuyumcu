@@ -191,8 +191,8 @@ enum CustomerType: String, Codable, CaseIterable {
         switch self {
         case .regular:  return 1.00
         case .frugal:   return 0.60
-        case .generous: return 1.50
-        case .urgent:   return 1.30
+        case .generous: return 1.35
+        case .urgent:   return 1.20
         case .tourist:  return 1.35
         case .vip:      return 1.40
         }

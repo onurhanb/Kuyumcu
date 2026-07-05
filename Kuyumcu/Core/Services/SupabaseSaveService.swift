@@ -20,6 +20,8 @@ struct PlayerStatsRow: Codable {
     var dailyProfit: Double
     var weeklyProfit: Double
     var monthlyRevenue: Double
+    var taxDebt: Double
+    var lastTaxChargedDay: Int
     var currentDay: Int
     var passiveIncomeBalance: Double?
     var passiveIncomeUpdatedAt: String?
@@ -32,6 +34,7 @@ struct PlayerStatsRow: Codable {
     var dailyRewardClaimedAt: String?
     var entryRightsRefreshedAt: String?
     var profitDayAnchorAt: String?
+    var saveRevision: Int64
 
     enum CodingKeys: String, CodingKey {
         case userId = "user_id"
@@ -50,6 +53,8 @@ struct PlayerStatsRow: Codable {
         case dailyProfit = "daily_profit"
         case weeklyProfit = "weekly_profit"
         case monthlyRevenue = "monthly_revenue"
+        case taxDebt = "tax_debt"
+        case lastTaxChargedDay = "last_tax_charged_day"
         case currentDay = "current_day"
         case passiveIncomeBalance = "passive_income_balance"
         case passiveIncomeUpdatedAt = "passive_income_updated_at"
@@ -62,6 +67,7 @@ struct PlayerStatsRow: Codable {
         case dailyRewardClaimedAt = "daily_reward_claimed_at"
         case entryRightsRefreshedAt = "entry_rights_refreshed_at"
         case profitDayAnchorAt = "profit_day_anchor_at"
+        case saveRevision = "save_revision"
     }
 }
 
@@ -81,6 +87,8 @@ struct SavePlayerStatsPayload: Encodable {
     var dailyProfit: Double
     var weeklyProfit: Double
     var monthlyRevenue: Double
+    var taxDebt: Double
+    var lastTaxChargedDay: Int
     var currentDay: Int
     var passiveIncomeBalance: Double
     var passiveIncomeUpdatedAt: String
@@ -93,6 +101,7 @@ struct SavePlayerStatsPayload: Encodable {
     var dailyRewardClaimedAt: String?
     var entryRightsRefreshedAt: String?
     var profitDayAnchorAt: String?
+    var saveRevision: Int64
 
     enum CodingKeys: String, CodingKey {
         case shopName = "shop_name"
@@ -110,6 +119,8 @@ struct SavePlayerStatsPayload: Encodable {
         case dailyProfit = "daily_profit"
         case weeklyProfit = "weekly_profit"
         case monthlyRevenue = "monthly_revenue"
+        case taxDebt = "tax_debt"
+        case lastTaxChargedDay = "last_tax_charged_day"
         case currentDay = "current_day"
         case passiveIncomeBalance = "passive_income_balance"
         case passiveIncomeUpdatedAt = "passive_income_updated_at"
@@ -122,6 +133,7 @@ struct SavePlayerStatsPayload: Encodable {
         case dailyRewardClaimedAt = "daily_reward_claimed_at"
         case entryRightsRefreshedAt = "entry_rights_refreshed_at"
         case profitDayAnchorAt = "profit_day_anchor_at"
+        case saveRevision = "save_revision"
     }
 
     init(from state: GameState) {
@@ -141,18 +153,23 @@ struct SavePlayerStatsPayload: Encodable {
         dailyProfit = state.dailyProfit
         weeklyProfit = state.weeklyProfit
         monthlyRevenue = state.monthlyRevenue
+        taxDebt = state.taxDebt
+        lastTaxChargedDay = state.lastTaxChargedDay
         currentDay = state.currentDay
         passiveIncomeBalance = state.passiveIncomeBalance
         passiveIncomeUpdatedAt = isoFormatter.string(from: state.passiveIncomeUpdatedAt)
         totalTransactions = state.totalTransactions
         acceptedDeals = state.acceptedDeals
         rejectedDeals = state.rejectedDeals
-        lifestyleScore = state.lifestyleScore
+        lifestyleScore = state.lifestyleItems
+            .filter(\.isOwned)
+            .reduce(0) { $0 + $1.lifestylePoints }
         yesterdayCash = state.yesterdayCash
         dailyRewardDay = state.dailyRewardDay
         dailyRewardClaimedAt = state.dailyRewardClaimedAt.map { isoFormatter.string(from: $0) }
         entryRightsRefreshedAt = state.entryRightsRefreshedAt.map { isoFormatter.string(from: $0) }
         profitDayAnchorAt = state.profitDayAnchorAt.map { isoFormatter.string(from: $0) }
+        saveRevision = state.saveRevision
     }
 }
 
@@ -351,6 +368,35 @@ struct EventRow: Codable {
 }
 
 class SupabaseSaveService {
+    private struct PendingSave {
+        let accessToken: String
+        let request: SaveGameStateRequest
+    }
+
+    private enum CloudLoadError: LocalizedError {
+        case statsFetchFailed
+        case shopsFetchFailed
+        case lifestyleFetchFailed
+
+        var errorDescription: String? {
+            switch self {
+            case .statsFetchFailed:
+                return "Bulut oyuncu verisi alınamadı."
+            case .shopsFetchFailed:
+                return "Bulut dükkan verisi alınamadı."
+            case .lifestyleFetchFailed:
+                return "Bulut yaşam tarzı verisi alınamadı."
+            }
+        }
+    }
+
+    private struct SaveFailure: Error {
+        let message: String
+    }
+
+    @MainActor private static var pendingSave: PendingSave?
+    @MainActor private static var isProcessingSaveQueue = false
+
     private static func parseISODate(_ raw: String?) -> Date? {
         guard let raw else { return nil }
 
@@ -375,12 +421,11 @@ class SupabaseSaveService {
         return ISO8601DateFormatter().date(from: raw)
     }
 
-    static func save(_ state: GameState) async {
+    @MainActor
+    static func enqueueSave(_ state: GameState) {
         guard let accessToken = AuthService.shared.session?.accessToken else { return }
-        await MainActor.run {
-            state.cloudSyncStatus = .syncing
-            state.cloudSyncErrorMessage = nil
-        }
+        state.cloudSyncStatus = .syncing
+        state.cloudSyncErrorMessage = nil
 
         let request = SaveGameStateRequest(
             clientVersion: AppVersion.current.short,
@@ -393,32 +438,60 @@ class SupabaseSaveService {
                 .map { SaveLifestyleItemPayload(itemName: $0.name) }
         )
 
+        pendingSave = PendingSave(accessToken: accessToken, request: request)
+        guard !isProcessingSaveQueue else { return }
+
+        isProcessingSaveQueue = true
+        Task {
+            await processSaveQueue(for: state)
+        }
+    }
+
+    private static func processSaveQueue(for state: GameState) async {
+        while true {
+            let nextSave: PendingSave? = await MainActor.run {
+                guard let pendingSave else {
+                    isProcessingSaveQueue = false
+                    return nil
+                }
+                SupabaseSaveService.pendingSave = nil
+                return pendingSave
+            }
+
+            guard let nextSave else { return }
+            let result = await performSave(nextSave)
+
+            await MainActor.run {
+                switch result {
+                case .success:
+                    state.cloudSyncStatus = .synced
+                    state.cloudSyncUpdatedAt = Date()
+                    state.cloudSyncErrorMessage = nil
+                case .failure(let failure):
+                    state.cloudSyncStatus = .failed
+                    state.cloudSyncErrorMessage = failure.message
+                }
+            }
+        }
+    }
+
+    private static func performSave(_ pendingSave: PendingSave) async -> Result<Void, SaveFailure> {
         do {
-            supabase.functions.setAuth(token: accessToken)
+            supabase.functions.setAuth(token: pendingSave.accessToken)
             let response: SaveGameStateResponse = try await supabase.functions.invoke(
                 "save-game-state",
-                options: FunctionInvokeOptions(method: .post, body: request)
+                options: FunctionInvokeOptions(method: .post, body: pendingSave.request)
             )
 
             if !response.success {
                 let message = response.error ?? "Bilinmeyen hata"
                 print("[SupabaseSave] save-game-state hata:", message)
-                await MainActor.run {
-                    state.cloudSyncStatus = .failed
-                    state.cloudSyncErrorMessage = message
-                }
-                return
+                return .failure(SaveFailure(message: message))
             }
-            await MainActor.run {
-                state.cloudSyncStatus = .synced
-                state.cloudSyncUpdatedAt = Date()
-            }
+            return .success(())
         } catch {
             print("[SupabaseSave] save-game-state invoke hata:", error.localizedDescription)
-            await MainActor.run {
-                state.cloudSyncStatus = .failed
-                state.cloudSyncErrorMessage = error.localizedDescription
-            }
+            return .failure(SaveFailure(message: error.localizedDescription))
         }
     }
 
@@ -430,38 +503,60 @@ class SupabaseSaveService {
         async let shopsResult = fetchShops(userId: userId)
         async let lifestyleResult = fetchLifestyle(userId: userId)
 
-        let (stats, shops, lifestyle) = await (statsResult, shopsResult, lifestyleResult)
+        let (statsFetch, shopsFetch, lifestyleFetch) = await (statsResult, shopsResult, lifestyleResult)
 
-        var activeShopKey: String?
-        if let stats {
+        switch statsFetch {
+        case .failure:
+            state.cloudSyncStatus = .failed
+            state.cloudSyncErrorMessage = CloudLoadError.statsFetchFailed.errorDescription
+            return
+        case .success(.none):
+            state.cloudSyncStatus = .idle
+            state.cloudSyncErrorMessage = nil
+            return
+        case .success(.some(let stats)):
+            if stats.saveRevision < state.saveRevision {
+                enqueueSave(state)
+                return
+            }
+            guard case .success(let shops) = shopsFetch else {
+                state.cloudSyncStatus = .failed
+                state.cloudSyncErrorMessage = CloudLoadError.shopsFetchFailed.errorDescription
+                return
+            }
+            guard case .success(let lifestyle) = lifestyleFetch else {
+                state.cloudSyncStatus = .failed
+                state.cloudSyncErrorMessage = CloudLoadError.lifestyleFetchFailed.errorDescription
+                return
+            }
+
             applyStats(stats, to: state)
-            activeShopKey = stats.activeShopKey
-        }
-        if let shops {
             applyShops(shops, to: state)
-        }
-        restoreActiveShop(activeShopKey, in: state)
-        if let lifestyle {
+            restoreActiveShop(stats.activeShopKey, in: state)
             applyLifestyle(lifestyle, to: state)
+            GameSaveService.save(state)
+            state.cloudSyncStatus = .synced
+            state.cloudSyncUpdatedAt = Date()
+            state.cloudSyncErrorMessage = nil
         }
     }
 
-    private static func fetchStats(userId: UUID) async -> PlayerStatsRow? {
+    private static func fetchStats(userId: UUID) async -> Result<PlayerStatsRow?, Error> {
         do {
-            let row: PlayerStatsRow = try await supabase
+            let rows: [PlayerStatsRow] = try await supabase
                 .from("player_stats")
-                .select("user_id, shop_name, active_shop_key, player_cash, inventory_usd, inventory_eur, inventory_gram, inventory_quarter, inventory_half, inventory_full, entry_rights_remaining, spin_rights_remaining, total_profit, daily_profit, weekly_profit, monthly_revenue, current_day, passive_income_balance, passive_income_updated_at, total_transactions, accepted_deals, rejected_deals, lifestyle_score, yesterday_cash, daily_reward_day, daily_reward_claimed_at, entry_rights_refreshed_at, profit_day_anchor_at")
+                .select("user_id, shop_name, active_shop_key, player_cash, inventory_usd, inventory_eur, inventory_gram, inventory_quarter, inventory_half, inventory_full, entry_rights_remaining, spin_rights_remaining, total_profit, daily_profit, weekly_profit, monthly_revenue, tax_debt, last_tax_charged_day, current_day, passive_income_balance, passive_income_updated_at, total_transactions, accepted_deals, rejected_deals, lifestyle_score, yesterday_cash, daily_reward_day, daily_reward_claimed_at, entry_rights_refreshed_at, profit_day_anchor_at, save_revision")
                 .eq("user_id", value: userId.uuidString)
-                .single()
+                .limit(1)
                 .execute()
                 .value
-            return row
+            return .success(rows.first)
         } catch {
-            return nil
+            return .failure(error)
         }
     }
 
-    private static func fetchShops(userId: UUID) async -> [OwnedShopRow]? {
+    private static func fetchShops(userId: UUID) async -> Result<[OwnedShopRow], Error> {
         do {
             let rows: [OwnedShopRow] = try await supabase
                 .from("owned_shops")
@@ -469,13 +564,13 @@ class SupabaseSaveService {
                 .eq("user_id", value: userId.uuidString)
                 .execute()
                 .value
-            return rows
+            return .success(rows)
         } catch {
-            return nil
+            return .failure(error)
         }
     }
 
-    private static func fetchLifestyle(userId: UUID) async -> [LifestyleItemRow]? {
+    private static func fetchLifestyle(userId: UUID) async -> Result<[LifestyleItemRow], Error> {
         do {
             let rows: [LifestyleItemRow] = try await supabase
                 .from("lifestyle_items")
@@ -483,9 +578,9 @@ class SupabaseSaveService {
                 .eq("user_id", value: userId.uuidString)
                 .execute()
                 .value
-            return rows
+            return .success(rows)
         } catch {
-            return nil
+            return .failure(error)
         }
     }
 
@@ -504,6 +599,8 @@ class SupabaseSaveService {
         state.dailyProfit = row.dailyProfit
         state.weeklyProfit = row.weeklyProfit
         state.monthlyRevenue = row.monthlyRevenue
+        state.taxDebt = row.taxDebt
+        state.lastTaxChargedDay = row.lastTaxChargedDay
         state.currentDay = row.currentDay
         state.passiveIncomeBalance = row.passiveIncomeBalance ?? 0
         state.passiveIncomeUpdatedAt = parseISODate(row.passiveIncomeUpdatedAt) ?? Date()
@@ -531,8 +628,9 @@ class SupabaseSaveService {
         if let supabaseProfitDayAnchorAt {
             state.profitDayAnchorAt = supabaseProfitDayAnchorAt
         }
+        state.saveRevision = max(state.saveRevision, row.saveRevision)
         state.syncEntryRightsIfNeeded()
-        state.syncProfitPeriodsIfNeeded()
+        state.syncProfitPeriodsIfNeeded(persistsChanges: true, syncsCloud: false)
     }
 
     private static func applyShops(_ rows: [OwnedShopRow], to state: GameState) {
@@ -567,6 +665,7 @@ class SupabaseSaveService {
         for index in state.lifestyleItems.indices {
             state.lifestyleItems[index].isOwned = ownedNames.contains(state.lifestyleItems[index].name)
         }
+        state.recalculateLifestyleScore()
     }
 
     static func loadRates(into state: GameState) async {
