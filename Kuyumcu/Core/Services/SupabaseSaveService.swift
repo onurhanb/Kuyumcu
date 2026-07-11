@@ -282,37 +282,23 @@ struct GoldRatesRow: Codable {
     }
 }
 
-struct LeaderboardRow: Codable {
-    var userId: UUID
-    var shopName: String
-    var playerCash: Double
-    var inventoryGram: Double
-    var inventoryQuarter: Double
-    var inventoryHalf: Double
-    var inventoryFull: Double
-    var inventoryUsd: Double
-    var inventoryEur: Double
-    var dailyProfit: Double
-    var weeklyProfit: Double
-    var monthlyRevenue: Double
-    var totalProfit: Double
-    var lifestyleScore: Int
+struct GoldRateHistoryRow: Codable {
+    var snapshotDate: String
+    var gramBuy: Double
+    var quarterBuy: Double
+    var halfBuy: Double
+    var fullBuy: Double
+    var usdBuy: Double
+    var eurBuy: Double
 
     enum CodingKeys: String, CodingKey {
-        case userId = "user_id"
-        case shopName = "shop_name"
-        case playerCash = "player_cash"
-        case inventoryGram = "inventory_gram"
-        case inventoryQuarter = "inventory_quarter"
-        case inventoryHalf = "inventory_half"
-        case inventoryFull = "inventory_full"
-        case inventoryUsd = "inventory_usd"
-        case inventoryEur = "inventory_eur"
-        case dailyProfit = "daily_profit"
-        case weeklyProfit = "weekly_profit"
-        case monthlyRevenue = "monthly_revenue"
-        case totalProfit = "total_profit"
-        case lifestyleScore = "lifestyle_score"
+        case snapshotDate = "snapshot_date"
+        case gramBuy = "gram_buy"
+        case quarterBuy = "quarter_buy"
+        case halfBuy = "half_buy"
+        case fullBuy = "full_buy"
+        case usdBuy = "usd_buy"
+        case eurBuy = "eur_buy"
     }
 }
 
@@ -339,6 +325,28 @@ struct DailyLeaderboardSnapshotRow: Codable {
 struct DailyLeaderboardSnapshot {
     let updatedAt: Date
     let entries: [LeaderboardEntry]
+}
+
+struct SocialFeedPostRow: Codable {
+    var id: UUID
+    var postType: String
+    var authorName: String
+    var authorHandle: String
+    var authorAvatarKey: String
+    var body: String
+    var publishedAt: String
+    var expiresAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case postType = "post_type"
+        case authorName = "author_name"
+        case authorHandle = "author_handle"
+        case authorAvatarKey = "author_avatar_key"
+        case body
+        case publishedAt = "published_at"
+        case expiresAt = "expires_at"
+    }
 }
 
 struct EventRow: Codable {
@@ -390,8 +398,10 @@ class SupabaseSaveService {
         }
     }
 
-    private struct SaveFailure: Error {
-        let message: String
+    private enum SaveOutcome {
+        case success
+        case conflict
+        case failure(String)
     }
 
     @MainActor private static var pendingSave: PendingSave?
@@ -459,23 +469,30 @@ class SupabaseSaveService {
             }
 
             guard let nextSave else { return }
-            let result = await performSave(nextSave)
+            let outcome = await performSave(nextSave)
 
-            await MainActor.run {
-                switch result {
-                case .success:
+            switch outcome {
+            case .success:
+                await MainActor.run {
                     state.cloudSyncStatus = .synced
                     state.cloudSyncUpdatedAt = Date()
                     state.cloudSyncErrorMessage = nil
-                case .failure(let failure):
+                }
+            case .conflict:
+                // Bulutta daha yeni bir kayıt var (gönderdiğimiz save_revision bayat).
+                // Yerelin üstüne bulut verisini çekip senkronu düzelt; load() kendi
+                // cloudSyncStatus'unu .synced yapar.
+                await load(into: state)
+            case .failure(let message):
+                await MainActor.run {
                     state.cloudSyncStatus = .failed
-                    state.cloudSyncErrorMessage = failure.message
+                    state.cloudSyncErrorMessage = message
                 }
             }
         }
     }
 
-    private static func performSave(_ pendingSave: PendingSave) async -> Result<Void, SaveFailure> {
+    private static func performSave(_ pendingSave: PendingSave) async -> SaveOutcome {
         do {
             supabase.functions.setAuth(token: pendingSave.accessToken)
             let response: SaveGameStateResponse = try await supabase.functions.invoke(
@@ -483,15 +500,19 @@ class SupabaseSaveService {
                 options: FunctionInvokeOptions(method: .post, body: pendingSave.request)
             )
 
+            if response.error == "revision_conflict" {
+                print("[SupabaseSave] save-game-state çakışma: buluttan güncel veri çekilecek")
+                return .conflict
+            }
             if !response.success {
                 let message = response.error ?? "Bilinmeyen hata"
                 print("[SupabaseSave] save-game-state hata:", message)
-                return .failure(SaveFailure(message: message))
+                return .failure(message)
             }
-            return .success(())
+            return .success
         } catch {
             print("[SupabaseSave] save-game-state invoke hata:", error.localizedDescription)
-            return .failure(SaveFailure(message: error.localizedDescription))
+            return .failure(error.localizedDescription)
         }
     }
 
@@ -535,6 +556,7 @@ class SupabaseSaveService {
             restoreActiveShop(stats.activeShopKey, in: state)
             applyLifestyle(lifestyle, to: state)
             GameSaveService.save(state)
+            state.hasCloudData = true
             state.cloudSyncStatus = .synced
             state.cloudSyncUpdatedAt = Date()
             state.cloudSyncErrorMessage = nil
@@ -700,6 +722,22 @@ class SupabaseSaveService {
         }
     }
 
+    static func fetchRateHistory(days: Int = 30) async -> [GoldRateHistoryRow] {
+        do {
+            let rows: [GoldRateHistoryRow] = try await supabase
+                .from("gold_rate_history")
+                .select("snapshot_date, gram_buy, quarter_buy, half_buy, full_buy, usd_buy, eur_buy")
+                .order("snapshot_date", ascending: false)
+                .limit(days)
+                .execute()
+                .value
+            return rows
+        } catch {
+            print("[SupabaseSave] gold_rate_history hata:", error.localizedDescription)
+            return []
+        }
+    }
+
     static func loadEvents(into state: GameState) async {
         do {
             let rows: [EventRow] = try await supabase
@@ -726,48 +764,6 @@ class SupabaseSaveService {
             await MainActor.run { state.activeEvents = events }
         } catch {
             print("[SupabaseSave] game_events hata:", error.localizedDescription)
-        }
-    }
-
-    static func fetchLeaderboard(currentUserId: UUID, rates: [Rate]) async -> [LeaderboardEntry] {
-        do {
-            let rows: [LeaderboardRow] = try await supabase
-                .from("player_stats")
-                .select("user_id, shop_name, player_cash, inventory_gram, inventory_quarter, inventory_half, inventory_full, inventory_usd, inventory_eur, daily_profit, weekly_profit, monthly_revenue, total_profit, lifestyle_score")
-                .neq("user_id", value: currentUserId.uuidString)
-                .order("total_profit", ascending: false)
-                .limit(9)
-                .execute()
-                .value
-
-            func price(_ type: String) -> Double {
-                rates.first(where: { $0.type == type })?.buyPrice ?? 0
-            }
-
-            return rows.map { row in
-                let netWorth = row.playerCash
-                    + row.inventoryGram * price("gramGold")
-                    + row.inventoryQuarter * price("quarterGold")
-                    + row.inventoryHalf * price("halfGold")
-                    + row.inventoryFull * price("fullGold")
-                    + row.inventoryUsd * price("USD")
-                    + row.inventoryEur * price("EUR")
-
-                return LeaderboardEntry(
-                    id: row.userId,
-                    playerName: row.shopName,
-                    dailyProfit: row.dailyProfit,
-                    weeklyProfit: row.weeklyProfit,
-                    monthlyRevenue: row.monthlyRevenue,
-                    netWorth: netWorth,
-                    cashBalance: row.playerCash,
-                    lifestylePoints: row.lifestyleScore,
-                    isPlayer: false
-                )
-            }
-        } catch {
-            print("[SupabaseSave] leaderboard hata:", error.localizedDescription)
-            return []
         }
     }
 
@@ -820,6 +816,30 @@ class SupabaseSaveService {
         } catch {
             print("[SupabaseSave] daily leaderboard snapshot hata:", error.localizedDescription)
             return nil
+        }
+    }
+
+    static func fetchSocialFeedPosts(limit: Int = 30) async throws -> [SocialFeedPost] {
+        let rows: [SocialFeedPostRow] = try await supabase
+            .from("social_feed_posts")
+            .select("id, post_type, author_name, author_handle, author_avatar_key, body, published_at, expires_at")
+            .order("published_at", ascending: false)
+            .limit(limit)
+            .execute()
+            .value
+
+        return rows.compactMap { row in
+            guard let publishedAt = parseISODate(row.publishedAt) else { return nil }
+            return SocialFeedPost(
+                id: row.id,
+                postType: row.postType,
+                authorName: row.authorName,
+                authorHandle: row.authorHandle,
+                authorAvatarKey: row.authorAvatarKey,
+                body: row.body,
+                publishedAt: publishedAt,
+                expiresAt: parseISODate(row.expiresAt)
+            )
         }
     }
 }

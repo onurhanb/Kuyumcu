@@ -19,6 +19,12 @@ Deno.serve(async (_req) => {
     console.log("[fetch-gold-rates] rates fetched successfully");
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE);
+    const fetchedAt = new Date();
+    const fetchedAtIso = fetchedAt.toISOString();
+    const snapshotDate = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Europe/Istanbul",
+    }).format(fetchedAt);
+
     const { error } = await supabase.from("gold_rates").upsert({
       id:                   1,
       gram_buy:             rates.gramBuy,
@@ -40,19 +46,29 @@ Deno.serve(async (_req) => {
       eur_sell:             rates.eurSell,
       eur_change_dir:       rates.eurChangeDir,
       source_name:          "truncgil.com",
-      fetched_at:           new Date().toISOString(),
+      fetched_at:           fetchedAtIso,
     }, { onConflict: "id" });
 
     if (error) throw error;
     console.log("[fetch-gold-rates] gold_rates updated");
 
-    const fetchedAt = new Date();
-    const snapshotDate = new Intl.DateTimeFormat("en-CA", {
-      timeZone: "Europe/Istanbul",
-    }).format(fetchedAt);
+    const { error: historyError } = await supabase.from("gold_rate_history").upsert({
+      snapshot_date: snapshotDate,
+      gram_buy: rates.gramBuy,
+      quarter_buy: rates.quarterBuy,
+      half_buy: rates.halfBuy,
+      full_buy: rates.fullBuy,
+      usd_buy: rates.usdBuy,
+      eur_buy: rates.eurBuy,
+      source_name: "truncgil.com",
+      updated_at: fetchedAtIso,
+    }, { onConflict: "snapshot_date" });
+    if (historyError) throw historyError;
+    console.log("[fetch-gold-rates] gold_rate_history upserted");
+
     const { error: leaderboardError } = await supabase.rpc("refresh_daily_leaderboard_snapshot_v1", {
       p_snapshot_date: snapshotDate,
-      p_updated_at: fetchedAt.toISOString(),
+      p_updated_at: fetchedAtIso,
       p_gram_buy: rates.gramBuy,
       p_quarter_buy: rates.quarterBuy,
       p_half_buy: rates.halfBuy,

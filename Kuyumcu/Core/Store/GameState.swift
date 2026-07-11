@@ -158,7 +158,22 @@ class GameState: ObservableObject {
     @Published var lifestyleScore: Int
 
     // MARK: - Identity
-    @Published var shopName: String = "Misafir"
+    static let placeholderShopName = "Misafir"
+    @Published var shopName: String = GameState.placeholderShopName
+    @Published var hasCloudData: Bool = false
+
+    static func normalizedShopName(_ raw: String) -> String {
+        raw.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    static func isPlaceholderShopName(_ raw: String) -> Bool {
+        normalizedShopName(raw).caseInsensitiveCompare(placeholderShopName) == .orderedSame
+    }
+
+    static func needsShopNameSetup(_ raw: String) -> Bool {
+        let normalized = normalizedShopName(raw)
+        return normalized.isEmpty || isPlaceholderShopName(normalized)
+    }
 
     // MARK: - History
     @Published var yesterdayCash: Double
@@ -278,8 +293,9 @@ class GameState: ObservableObject {
     }
 
     var canEnterShop: Bool {
-        syncEntryRightsIfNeeded()
-        return entryRightsRemaining > 0 && !hasOutstandingTax
+        // Saf getter: yan etki yok. Hak yenileme (syncEntryRightsIfNeeded) her çağrı
+        // noktasında (ekran açılışı, scenePhase, promptEntry) zaten açıkça yapılıyor.
+        entryRightsRemaining > 0 && !hasOutstandingTax
     }
 
     var hasOutstandingTax: Bool {
@@ -326,9 +342,18 @@ class GameState: ObservableObject {
         return true
     }
 
-    func applyWheelReward(_ reward: WheelReward) {
-        guard spinRightsRemaining > 0 else { return }
+    /// Çark hakkını tüketir ve hemen persist eder. Hak başta düşürülür ki animasyon
+    /// sırasında uygulama kapatılsa bile "bedava tekrar çevirme" açığı oluşmasın.
+    @discardableResult
+    func consumeSpinRight() -> Bool {
+        guard spinRightsRemaining > 0 else { return false }
         spinRightsRemaining -= 1
+        persistChanges()
+        return true
+    }
+
+    /// Ödülü hesaba işler (hak düşürmez — hak `consumeSpinRight` ile önceden tüketilir).
+    func grantWheelReward(_ reward: WheelReward) {
         applyWheelReward(reward, persistsChanges: true)
     }
 
@@ -479,8 +504,7 @@ class GameState: ObservableObject {
 
         // Uygulama açılışında günlük fiyat güncelleme kontrolü (Supabase'den)
         // Not: Asıl yükleme KuyumcuApp içinde SupabaseSaveService.load() ile yapılır.
-
-        startArrivalTimer()
+        // Müşteri timer'ı CounterView.onAppear'da başlatılır.
     }
 
     // MARK: - Rate Fetch
@@ -615,7 +639,6 @@ class GameState: ObservableObject {
         isBargaining                 = false
         if currentDay % 7  == 0 { weeklyProfit   = 0 }
         if currentDay % 30 == 0 { monthlyRevenue  = 0 }
-        startArrivalTimer()
         persistChanges()
     }
 
@@ -690,7 +713,7 @@ class GameState: ObservableObject {
         ownedShops                  = shops.filter { $0.isOwned }
         lockedShops                 = shops.filter { !$0.isOwned }
         activeShop                  = first
-        shopName = keepsShopName ? retainedShopName : "Misafir"
+        shopName = keepsShopName ? retainedShopName : Self.placeholderShopName
         entryRightsRemaining        = 3
         spinRightsRemaining         = 0
         totalProfit                 = 0
@@ -720,7 +743,6 @@ class GameState: ObservableObject {
         } else {
             GameSaveService.reset()
         }
-        startArrivalTimer()
         if syncsCloud {
             SupabaseSaveService.enqueueSave(self)
         }
@@ -779,10 +801,9 @@ class GameState: ObservableObject {
         persistChanges()
     }
 
-    /// Aktif dükkanı değiştirir, o dükkanın lokasyonuna göre müşteri kuyruğu oluşturur.
+    /// Aktif dükkanı değiştirir. Müşteri kuyruğu yalnızca CounterView görünürken başlatılır.
     func enterShop(_ shop: Shop) {
         activeShop = shop
-        startArrivalTimer()
         persistChanges()
     }
 
@@ -901,6 +922,10 @@ class GameState: ObservableObject {
         currentCustomer = nil
         spawnCustomer()
         scheduleNextCustomerArrival()
+    }
+
+    func stopArrivalTimer() {
+        arrivalTask?.cancel()
     }
 
     func spawnCustomer() {

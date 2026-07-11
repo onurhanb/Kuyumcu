@@ -202,7 +202,7 @@ struct ProfileView: View {
         }
         .gdlScreenBackground()
         .navigationTitle("Profil")
-        .navigationBarTitleDisplayMode(.large)
+        .navigationBarTitleDisplayMode(.inline)
         .alert("Hesaptan Çıkış", isPresented: $showSignOutAlert) {
             Button("Çıkış Yap", role: .destructive) {
                 Task { try? await AuthService.shared.signOut() }

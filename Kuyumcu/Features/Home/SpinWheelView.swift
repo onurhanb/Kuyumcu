@@ -19,6 +19,7 @@ struct SpinWheelView: View {
     @State private var isSpinning = false
     @State private var resultReward: GameState.WheelReward?
     @State private var errorMessage: String?
+    @State private var spinRevealTask: Task<Void, Never>?
 
     private enum WheelStyle {
         case cash
@@ -74,6 +75,9 @@ struct SpinWheelView: View {
             .clipShape(RoundedRectangle(cornerRadius: GDLRadius.shellOuterRadius))
             .shadow(color: .black.opacity(0.4), radius: 24, x: 0, y: 8)
             .padding(.horizontal, 24)
+        }
+        .onDisappear {
+            spinRevealTask?.cancel()
         }
     }
 
@@ -228,7 +232,9 @@ struct SpinWheelView: View {
 
     private func spinWheel() {
         guard !isSpinning else { return }
-        guard gameState.canSpinWheel else {
+        // Hakkı BAŞTA tüket (persist edilir): animasyon sırasında uygulama kapatılsa
+        // bile hak yanar, bedava tekrar çevirme açığı oluşmaz.
+        guard gameState.consumeSpinRight() else {
             resultReward = nil
             errorMessage = "Çark hakkın yok. Günlük ödülden hak kazanmalısın."
             return
@@ -241,22 +247,22 @@ struct SpinWheelView: View {
         resultReward = nil
         isSpinning = true
 
-        let targetRotation = targetRotation(for: selectedSegment.index)
+        let target = targetRotation(for: selectedSegment.index)
 
         withAnimation(.timingCurve(0.12, 0.88, 0.18, 1, duration: 4.2)) {
-            wheelRotation = targetRotation
+            wheelRotation = target
         }
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 4.25) {
-            wheelRotation = targetRotation
-            let finalIndex = winningSegmentIndex(for: wheelRotation) ?? selectedSegment.index
-            guard let finalSegment = wheelSegments.first(where: { $0.index == finalIndex }) else {
-                isSpinning = false
-                return
-            }
-
-            gameState.applyWheelReward(finalSegment.reward)
-            resultReward = finalSegment.reward
+        // İptal edilebilir Task: view kapanırsa (onDisappear) reveal iptal edilir,
+        // gitmiş bir view'ın @State'ine dokunulmaz. Ödül seçilen segmentle birebir
+        // aynıdır (rotasyondan yeniden türetme yok).
+        spinRevealTask?.cancel()
+        spinRevealTask = Task {
+            try? await Task.sleep(nanoseconds: 4_250_000_000)
+            guard !Task.isCancelled else { return }
+            wheelRotation = target
+            gameState.grantWheelReward(selectedReward)
+            resultReward = selectedReward
             isSpinning = false
         }
     }
@@ -408,19 +414,6 @@ struct SpinWheelView: View {
     private func normalizedAngle(_ angle: Double) -> Double {
         let normalized = angle.truncatingRemainder(dividingBy: 360)
         return normalized >= 0 ? normalized : normalized + 360
-    }
-
-    private func winningSegmentIndex(for rotation: Double) -> Int? {
-        let wheelAngleUnderPointer = normalizedAngle(pointerAngle - rotation)
-        return wheelSegments.first(where: { contains(angle: wheelAngleUnderPointer, in: $0) })?.index
-    }
-
-    private func contains(angle: Double, in segment: WheelSegment) -> Bool {
-        if segment.startAngle <= segment.endAngle {
-            return angle >= segment.startAngle && angle < segment.endAngle
-        }
-
-        return angle >= segment.startAngle || angle < segment.endAngle
     }
 }
 

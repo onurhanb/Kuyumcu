@@ -91,13 +91,10 @@ struct DailyRewardView: View {
 
         Button {
             guard status == .available else { return }
-            if AdManager.shared.isAdReady {
-                AdManager.shared.showAd {
-                    gameState.claimDailyReward()
-                    claimedThisSession = true
-                }
-            } else {
-                AdManager.shared.loadAd()
+            AdManager.shared.showAd {
+                gameState.claimDailyReward()
+                claimedThisSession = true
+            } onUnavailable: {
                 showAdNotReadyAlert = true
             }
         } label: {

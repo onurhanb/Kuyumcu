@@ -55,8 +55,9 @@ class GameSaveService {
     }
 
     @MainActor
-    static func load(into state: GameState) {
-        guard let dict = UserDefaults.standard.dictionary(forKey: key) else { return }
+    @discardableResult
+    static func load(into state: GameState) -> Bool {
+        guard let dict = UserDefaults.standard.dictionary(forKey: key) else { return false }
 
         let legacyInventoryCash = dict["inventoryTRY"] as? Double
         state.playerCash                  = dict["playerCash"]                  as? Double ?? legacyInventoryCash ?? state.playerCash
@@ -154,6 +155,7 @@ class GameSaveService {
         state.saveRevision = dict["saveRevision"] as? Int64 ?? Int64(dict["saveRevision"] as? Int ?? 0)
         state.syncEntryRightsIfNeeded()
         state.syncProfitPeriodsIfNeeded(persistsChanges: true, syncsCloud: false)
+        return true
     }
 
     static func reset() {

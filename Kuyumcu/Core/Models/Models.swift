@@ -328,3 +328,16 @@ struct LeaderboardEntry: Identifiable, Codable {
     var lifestylePoints: Int
     var isPlayer: Bool = false
 }
+
+// MARK: - Social Feed
+
+struct SocialFeedPost: Identifiable, Codable {
+    var id: UUID
+    var postType: String
+    var authorName: String
+    var authorHandle: String
+    var authorAvatarKey: String
+    var body: String
+    var publishedAt: Date
+    var expiresAt: Date?
+}

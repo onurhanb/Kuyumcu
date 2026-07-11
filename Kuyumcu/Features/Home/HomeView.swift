@@ -18,6 +18,7 @@ struct HomeView: View {
     @State private var showCounter      = false
     @State private var showIncomeAlert      = false
     @State private var lastCollectedAmount: Double = 0
+    @State private var showSocialFeed = false
     @State private var showDailyReward  = false
     @State private var showSpinWheel = false
     @State private var tipIndex         = Int.random(in: 0..<infoTips.count)
@@ -94,9 +95,11 @@ struct HomeView: View {
         .fullScreenCover(isPresented: $showCounter) {
             CounterView().environmentObject(gameState)
         }
+        .overlay { socialFeedOverlay }
         .overlay { dailyRewardOverlay }
         .overlay { spinWheelOverlay }
         .overlay { taxDebtOverlay }
+        .animation(.easeInOut(duration: 0.2), value: showSocialFeed)
         .animation(.easeInOut(duration: 0.2), value: showDailyReward)
         .animation(.easeInOut(duration: 0.2), value: showSpinWheel)
         .animation(.easeInOut(duration: 0.2), value: showTaxDebtDialog)
@@ -166,6 +169,15 @@ struct HomeView: View {
                 Spacer(minLength: 80)
             }
             .padding(.top, GDLSpacing.md)
+        }
+    }
+
+    @ViewBuilder
+    private var socialFeedOverlay: some View {
+        if showSocialFeed {
+            SocialFeedView(isPresented: $showSocialFeed)
+                .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                .zIndex(9)
         }
     }
 
@@ -240,10 +252,42 @@ struct HomeView: View {
 
                 // Koyu gradient okunabilirlik için
                 LinearGradient(
-                    colors: [Color.black.opacity(0.65), Color.clear],
+                    colors: [Color.black.opacity(0.5), Color.clear],
                     startPoint: .bottom, endPoint: .top
                 )
                 .frame(height: 185)
+
+                // Sol üst sosyal akış
+                VStack {
+                    HStack {
+                        Button { showSocialFeed = true } label: {
+                            ZStack {
+                                if UIImage(named: "social_feed_button_icon") != nil {
+                                    Image("social_feed_button_icon")
+                                        .resizable()
+                                        .scaledToFit()
+                                        .frame(width: 56, height: 56)
+                                } else {
+                                    Image(systemName: "bubble.left.and.bubble.right.fill")
+                                        .resizable()
+                                        .scaledToFit()
+                                        .foregroundColor(.gdlGold)
+                                        .padding(10)
+                                        .background(Color.black.opacity(0.45))
+                                        .clipShape(Circle())
+                                        .frame(width: 56, height: 56)
+                                }
+                            }
+                            .frame(width: 56, height: 56)
+                            .shadow(color: .black.opacity(0.28), radius: 10, x: 0, y: 4)
+                        }
+                        .buttonStyle(.plain)
+                        Spacer()
+                    }
+                    .padding(.horizontal, GDLSpacing.lg)
+                    .padding(.top, GDLSpacing.md)
+                    Spacer()
+                }
 
                 // Sağ üst aksiyonlar
                 VStack {
@@ -588,6 +632,8 @@ struct HomeView: View {
                         audioManager.playEffect(.passiveCollect)
                         lastCollectedAmount = amount
                         showIncomeAlert = true
+                    } onUnavailable: {
+                        showAdNotReadyAlert = true
                     }
                 }
                 .disabled(!canCollect)

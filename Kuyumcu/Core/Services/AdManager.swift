@@ -105,8 +105,8 @@ class AdManager: NSObject, ObservableObject {
 
     // MARK: - Show
 
-    /// Reklamı göster. İzleme tamamlanınca `onRewarded` çağrılır.
-    func showAd(onRewarded: @escaping () -> Void) {
+    /// Reklamı göster. İzleme tamamlanınca `onRewarded` çağrılır. Ad hazır değilse `onUnavailable` çağrılır.
+    func showAd(onRewarded: @escaping () -> Void, onUnavailable: @escaping () -> Void = {}) {
         guard let ad = rewardedAd,
               let rootVC = UIApplication.shared
                   .connectedScenes
@@ -114,6 +114,7 @@ class AdManager: NSObject, ObservableObject {
                   .first?.windows.first?.rootViewController
         else {
             loadAd()
+            onUnavailable()
             return
         }
 

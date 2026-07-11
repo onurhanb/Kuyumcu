@@ -93,9 +93,11 @@ struct CounterView: View {
         .onAppear {
             resetForNewCustomer()
             audioManager.enterCounterScreen()
+            gameState.startArrivalTimer()
         }
         .onDisappear {
             audioManager.exitCounterScreen()
+            gameState.stopArrivalTimer()
         }
         .onChange(of: showResult) { _, isShowing in
             if isShowing {

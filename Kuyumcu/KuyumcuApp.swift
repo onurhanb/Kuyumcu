@@ -51,7 +51,8 @@ struct KuyumcuApp: App {
                 } else if needsShopSetup {
                     // İlk kez giriş → dükkan adı al
                     ShopNameView { name in
-                        gameState.shopName = name
+                        gameState.shopName = GameState.normalizedShopName(name)
+                        GameSaveService.save(gameState)
                         SupabaseSaveService.enqueueSave(gameState)
                         needsShopSetup = false
                     }
@@ -75,6 +76,7 @@ struct KuyumcuApp: App {
                     Task { await handlePostLogin() }
                 } else if newSession == nil {
                     // Oturum kapandı → state sıfırla
+                    gameState.resetLocalProgress()
                     needsShopSetup    = false
                     hasLoadedGameData = false
                 }
@@ -88,6 +90,8 @@ struct KuyumcuApp: App {
                         await pushService.syncSavedTokenIfPossible()
                         await MainActor.run {
                             AdManager.shared.handleAppDidBecomeActive()
+                            refreshShopSetupRequirement()
+                            guard !needsShopSetup else { return }
                             _ = gameState.syncProfitPeriodsIfNeeded(persistsChanges: true, syncsCloud: true)
                         }
                     }
@@ -104,8 +108,9 @@ struct KuyumcuApp: App {
             isLoadingGameData = true
         }
 
-        // Önce yerel cache'i yükle
-        await MainActor.run { GameSaveService.load(into: gameState) }
+        // Önce yerel cache'i yükle. Oyun offline oynanmaz; bu sadece Supabase
+        // geçici hata verirse mevcut oyuncuyu yanlışlıkla kurulum ekranına düşürmez.
+        await MainActor.run { _ = GameSaveService.load(into: gameState) }
 
         // Supabase'den veri yükle (yerel cache'in üzerine yazar)
         await SupabaseSaveService.load(into: gameState)
@@ -119,11 +124,13 @@ struct KuyumcuApp: App {
 
         await MainActor.run {
             isLoadingGameData = false
-            // shopName hâlâ default "Misafir" ise yeni kullanıcı
-            if gameState.shopName == "Misafir" {
-                needsShopSetup = true
-            }
+            refreshShopSetupRequirement()
         }
+    }
+
+    @MainActor
+    private func refreshShopSetupRequirement() {
+        needsShopSetup = GameState.needsShopNameSetup(gameState.shopName)
     }
 
     // MARK: - Loading View

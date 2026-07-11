@@ -16,6 +16,9 @@ struct InventoryView: View {
     @EnvironmentObject var gameState: GameState
     @EnvironmentObject var audioManager: AudioManager
     @State private var tradeConfig: TradeSheetConfig? = nil
+    @State private var selectedTrendProduct: InventoryTrendProduct = .usd
+    @State private var rateHistoryRows: [GoldRateHistoryRow] = []
+    @State private var isRateHistoryLoading = false
 
     private var inv: Inventory { gameState.inventory }
 
@@ -37,6 +40,7 @@ struct InventoryView: View {
                 VStack(spacing: GDLSpacing.md) {
                     summaryCard
                     tlCashCard
+                    priceTrendCard
                     inventoryListCard
                     Spacer(minLength: 80)
                 }
@@ -58,7 +62,10 @@ struct InventoryView: View {
         }
         .gdlScreenBackground()
         .navigationTitle("Envanter")
-        .navigationBarTitleDisplayMode(.large)
+        .navigationBarTitleDisplayMode(.inline)
+        .task {
+            await loadRateHistory()
+        }
     }
 
     // MARK: - Summary + TL Cash Row
@@ -113,6 +120,87 @@ struct InventoryView: View {
     }
 
     private var tlCashCard: some View { EmptyView() }
+
+    private var trendPoints: [InventoryTrendPoint] {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+
+        let mapped = rateHistoryRows.compactMap { row -> InventoryTrendPoint? in
+            guard let date = formatter.date(from: row.snapshotDate) else { return nil }
+            return InventoryTrendPoint(date: date, value: selectedTrendProduct.value(from: row))
+        }
+        .sorted { $0.date < $1.date }
+
+        if !mapped.isEmpty {
+            return mapped
+        }
+
+        let fallback = selectedTrendProduct.currentBuyPrice(from: gameState)
+        guard fallback > 0 else { return [] }
+        return [InventoryTrendPoint(date: Date(), value: fallback)]
+    }
+
+    private var priceTrendCard: some View {
+        VStack(alignment: .leading, spacing: GDLSpacing.sm) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: GDLSpacing.xs) {
+                    ForEach(InventoryTrendProduct.allCases) { product in
+                        Button {
+                            selectedTrendProduct = product
+                        } label: {
+                            Text(product.title)
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(selectedTrendProduct == product ? .black : .gdlTextPrimary)
+                                .padding(.horizontal, GDLSpacing.sm)
+                                .padding(.vertical, 7)
+                                .background(selectedTrendProduct == product ? product.color : Color.gdlCardSecondary)
+                                .cornerRadius(999)
+                        }
+                    }
+                }
+            }
+
+            if isRateHistoryLoading {
+                ProgressView()
+                    .scaleEffect(0.8)
+                    .tint(.gdlGold)
+            }
+
+            if trendPoints.isEmpty {
+                Text("Grafik verisi hazırlanıyor.")
+                    .font(.gdlCaption())
+                    .foregroundColor(.gdlTextSecondary)
+            } else {
+                InventoryTrendLineChart(points: trendPoints, lineColor: selectedTrendProduct.color)
+                    .frame(height: 128)
+
+                HStack {
+                    Text(trendPoints.first.map { InventoryTrendPoint.labelFormatter.string(from: $0.date) } ?? "-")
+                        .font(.system(size: 11))
+                        .foregroundColor(.gdlTextSecondary)
+                    Spacer()
+                    Text(trendPoints.last.map { InventoryTrendPoint.labelFormatter.string(from: $0.date) } ?? "-")
+                        .font(.system(size: 11))
+                        .foregroundColor(.gdlTextSecondary)
+                }
+            }
+        }
+        .padding(.horizontal, GDLSpacing.md)
+        .padding(.vertical, GDLSpacing.sm)
+        .gdlCard()
+        .padding(.horizontal)
+    }
+
+    private func loadRateHistory() async {
+        await MainActor.run { isRateHistoryLoading = true }
+        let rows = await SupabaseSaveService.fetchRateHistory(days: 30)
+        await MainActor.run {
+            rateHistoryRows = rows
+            isRateHistoryLoading = false
+        }
+    }
 
     // MARK: - Inventory List Card
 
@@ -203,6 +291,126 @@ struct InventoryView: View {
             minWidth: 48,
             action: action
         )
+    }
+}
+
+private enum InventoryTrendProduct: String, CaseIterable, Identifiable {
+    case usd
+    case eur
+    case gramGold
+    case quarterGold
+    case halfGold
+    case fullGold
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .usd: return "Dolar"
+        case .eur: return "Euro"
+        case .gramGold: return "Gram Altın"
+        case .quarterGold: return "Çeyrek Altın"
+        case .halfGold: return "Yarım Altın"
+        case .fullGold: return "Tam Altın"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .usd: return Color(red: 0.2, green: 0.78, blue: 0.35)
+        case .eur: return Color(red: 0.25, green: 0.55, blue: 1.0)
+        case .gramGold, .quarterGold, .halfGold, .fullGold: return .gdlGold
+        }
+    }
+
+    func value(from row: GoldRateHistoryRow) -> Double {
+        switch self {
+        case .usd: return row.usdBuy
+        case .eur: return row.eurBuy
+        case .gramGold: return row.gramBuy
+        case .quarterGold: return row.quarterBuy
+        case .halfGold: return row.halfBuy
+        case .fullGold: return row.fullBuy
+        }
+    }
+
+    func currentBuyPrice(from gameState: GameState) -> Double {
+        let rateKey: String
+        switch self {
+        case .usd: rateKey = "USD"
+        case .eur: rateKey = "EUR"
+        case .gramGold: rateKey = "gramGold"
+        case .quarterGold: rateKey = "quarterGold"
+        case .halfGold: rateKey = "halfGold"
+        case .fullGold: rateKey = "fullGold"
+        }
+        return gameState.rate(for: rateKey)?.buyPrice ?? 0
+    }
+}
+
+private struct InventoryTrendPoint: Identifiable {
+    let date: Date
+    let value: Double
+    var id: String { "\(date.timeIntervalSince1970)-\(value)" }
+
+    static let labelFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "tr_TR")
+        formatter.dateFormat = "dd MMM"
+        return formatter
+    }()
+}
+
+private struct InventoryTrendLineChart: View {
+    let points: [InventoryTrendPoint]
+    let lineColor: Color
+
+    var body: some View {
+        GeometryReader { geometry in
+            let values = points.map(\.value)
+            let minValue = values.min() ?? 0
+            let maxValue = values.max() ?? 0
+            let valueRange = max(maxValue - minValue, 1)
+            let width = geometry.size.width
+            let height = geometry.size.height
+
+            ZStack(alignment: .topLeading) {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color.gdlCardSecondary.opacity(0.6))
+
+                Path { path in
+                    for (index, point) in points.enumerated() {
+                        let x: CGFloat
+                        if points.count == 1 {
+                            x = width / 2
+                        } else {
+                            x = CGFloat(index) / CGFloat(points.count - 1) * width
+                        }
+                        let normalized = (point.value - minValue) / valueRange
+                        let y = height - CGFloat(normalized) * height
+                        let position = CGPoint(x: x, y: y)
+                        if index == 0 {
+                            path.move(to: position)
+                        } else {
+                            path.addLine(to: position)
+                        }
+                    }
+                }
+                .stroke(lineColor, style: StrokeStyle(lineWidth: 2.5, lineJoin: .round))
+
+                HStack {
+                    Text(FormatUtils.tl(maxValue))
+                        .font(.system(size: 10))
+                        .foregroundColor(.gdlTextSecondary)
+                    Spacer()
+                    Text(FormatUtils.tl(minValue))
+                        .font(.system(size: 10))
+                        .foregroundColor(.gdlTextSecondary)
+                }
+                .padding(.horizontal, 8)
+                .padding(.top, 6)
+            }
+        }
     }
 }
 

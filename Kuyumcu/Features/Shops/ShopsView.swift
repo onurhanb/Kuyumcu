@@ -54,7 +54,7 @@ struct ShopsView: View {
         }
         .gdlScreenBackground()
         .navigationTitle("Dükkanlar")
-        .navigationBarTitleDisplayMode(.large)
+        .navigationBarTitleDisplayMode(.inline)
         .confirmationDialog(
             "Dükkan Satın Al",
             isPresented: Binding(

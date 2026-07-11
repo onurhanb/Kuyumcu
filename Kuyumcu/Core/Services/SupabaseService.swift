@@ -75,6 +75,7 @@ class AuthService: ObservableObject {
 
     func signOut() async throws {
         try await supabase.auth.signOut()
+        GameSaveService.reset()
         session = nil
     }
 

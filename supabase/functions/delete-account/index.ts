@@ -46,14 +46,10 @@ Deno.serve(async (req) => {
 
     const userId = data.user.id;
 
-    const deleteResults = await Promise.all([
-      supabase.from("lifestyle_items").delete().eq("user_id", userId),
-      supabase.from("owned_shops").delete().eq("user_id", userId),
-      supabase.from("player_stats").delete().eq("user_id", userId),
-      supabase.from("push_tokens").delete().eq("user_id", userId),
-    ]);
-
-    const deleteError = deleteResults.find((result) => result.error)?.error;
+    // Tüm oyun verisini tek transaction'da sil (ya hepsi, ya hiçbiri).
+    const { error: deleteError } = await supabase.rpc("delete_user_data", {
+      p_user_id: userId,
+    });
     if (deleteError) throw deleteError;
 
     const { error: authDeleteError } = await supabase.auth.admin.deleteUser(userId);

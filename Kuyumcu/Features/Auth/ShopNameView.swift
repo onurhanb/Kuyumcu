@@ -19,8 +19,9 @@ struct ShopNameView: View {
         return text.unicodeScalars.allSatisfy { allowed.contains($0) }
     }
 
-    private var trimmed: String { shopName.trimmingCharacters(in: .whitespaces) }
-    private var canContinue: Bool { isValid(shopName) }
+    private var trimmed: String { GameState.normalizedShopName(shopName) }
+    private var usesPlaceholderName: Bool { GameState.isPlaceholderShopName(trimmed) }
+    private var canContinue: Bool { isValid(shopName) && !usesPlaceholderName }
 
     var body: some View {
         ZStack {
@@ -89,7 +90,9 @@ struct ShopNameView: View {
                     )
 
                     if showError {
-                        Text("Yalnızca harf, rakam ve boşluk kullanılabilir.")
+                        Text(usesPlaceholderName
+                             ? "\"\(GameState.placeholderShopName)\" kullanılamaz. Lütfen farklı bir dükkan adı seç."
+                             : "Yalnızca harf, rakam ve boşluk kullanılabilir.")
                             .font(.system(size: 12))
                             .foregroundColor(.gdlNegative)
                     }

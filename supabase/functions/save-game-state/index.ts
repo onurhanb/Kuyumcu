@@ -8,6 +8,17 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+// Hile koruması sınırları (v1.6). Amaç: meşru oynanışı ASLA engellememek,
+// yalnızca imkânsız/manipüle edilmiş değerleri yakalamak. Eşikler bilerek geniştir.
+const LIMITS = {
+  maxPlayerCash: 1e13,          // 10 trilyon TL — akıl sağlığı tavanı
+  maxInventoryUnit: 1e9,        // tek envanter kalemi üst sınırı
+  maxSpinRights: 50,            // çark hakkı üst sınırı
+  maxProfitPerSecond: 5_000_000, // saniyede kazanılabilecek maks. kâr (çok cömert)
+  profitBurstBuffer: 100_000_000, // tek kayıt döngüsündeki ani kâr payı (çark/ödül/işlem)
+};
+
 const SHOP_RULES = {
   neighborhood_shop: { name: "Mahalle Kuyumcusu", employeeCapacity: 2 },
   bazaar_shop: { name: "Çarşı Kuyumcusu", employeeCapacity: 4 },
@@ -156,19 +167,39 @@ Deno.serve(async (req) => {
       return json({ success: false, error: "Client update required" }, 426);
     }
 
-    const validationError = validateSaveRequest(body);
+    const userId = data.user.id;
+    const existingStats = await fetchExistingStats(supabase, userId);
+    const validationError = validateSaveRequest(body, existingStats);
     if (validationError) {
       return json({ success: false, error: validationError }, 400);
     }
 
-    const userId = data.user.id;
-    const { error: rpcError } = await supabase.rpc("save_game_state_v1", {
+    // Bayat kayıt önce conflict olarak dönmeli. Aksi halde eski cihazdan gelen
+    // kayıt anti-cheat'e takılıp client'ın otomatik bulut yükleme akışını bozabilir.
+    if (existingStats &&
+        Number(body.stats.save_revision ?? 0) < Number(existingStats.save_revision ?? 0)) {
+      return json({ success: false, error: "revision_conflict" });
+    }
+
+    // Delta-bazlı plausibility: bir önceki kayıttan bu yana total_profit ne kadar
+    // arttı? Sunucu saatiyle geçen süreye göre imkânsız sıçramaları reddet.
+    const plausibilityError = validateProfitDelta(existingStats, body.stats);
+    if (plausibilityError) {
+      return json({ success: false, error: plausibilityError }, 400);
+    }
+
+    const { data: saveResult, error: rpcError } = await supabase.rpc("save_game_state_v1", {
       p_user_id: userId,
       p_stats: body.stats,
       p_owned_shops: body.owned_shops,
       p_lifestyle_items: body.lifestyle_items,
     });
     if (rpcError) throw rpcError;
+
+    // Gelen kayıt bayat (save_revision buluttakinden küçük) → client güncel veriyi çekmeli.
+    if (saveResult === "conflict") {
+      return json({ success: false, error: "revision_conflict" });
+    }
 
     return json({ success: true });
   } catch (error) {
@@ -197,6 +228,7 @@ function normalizeSaveRequest(body: SaveRequest): SaveRequest {
     ...body,
     stats: {
       ...body.stats,
+      shop_name: String(body.stats?.shop_name ?? "").trim(),
       tax_debt: Number.isFinite(body.stats?.tax_debt) ? body.stats.tax_debt : 0,
       last_tax_charged_day: Number.isInteger(body.stats?.last_tax_charged_day) ? body.stats.last_tax_charged_day : 0,
       profit_day_anchor_at: body.stats?.profit_day_anchor_at ?? null,
@@ -205,8 +237,22 @@ function normalizeSaveRequest(body: SaveRequest): SaveRequest {
   };
 }
 
-function validateSaveRequest(body: SaveRequest): string | null {
+function validateSaveRequest(body: SaveRequest, existingStats: ExistingStats | null): string | null {
   const stats = body.stats;
+  if (!stats.shop_name) {
+    return "Invalid shop_name";
+  }
+  if (stats.shop_name.toLocaleLowerCase("tr-TR") === "misafir") {
+    // Geçiş dönemi: eski Misafir hesaplar v1.7 forced-rename'e kadar save alabilsin,
+    // fakat yeni Misafir oluşumu ve normal isimden Misafir'e dönüş engellensin.
+    if (!existingStats) {
+      return "Reserved shop_name";
+    }
+    if (String(existingStats.shop_name ?? "").toLocaleLowerCase("tr-TR") !== "misafir") {
+      return "Reserved shop_name";
+    }
+  }
+
   const numericFields: Array<[string, number]> = [
     ["player_cash", stats.player_cash],
     ["inventory_usd", stats.inventory_usd],
@@ -262,6 +308,35 @@ function validateSaveRequest(body: SaveRequest): string | null {
     return "Invalid save_revision";
   }
 
+  // Mutlak akıl sağlığı tavanları — meşru oynanışta asla tetiklenmez.
+  if (stats.player_cash > LIMITS.maxPlayerCash) {
+    return "Implausible player_cash";
+  }
+  if (stats.spin_rights_remaining > LIMITS.maxSpinRights) {
+    return "Invalid spin_rights_remaining";
+  }
+  const inventoryFields: Array<[string, number]> = [
+    ["inventory_usd", stats.inventory_usd],
+    ["inventory_eur", stats.inventory_eur],
+    ["inventory_gram", stats.inventory_gram],
+    ["inventory_quarter", stats.inventory_quarter],
+    ["inventory_half", stats.inventory_half],
+    ["inventory_full", stats.inventory_full],
+  ];
+  for (const [field, value] of inventoryFields) {
+    if (value > LIMITS.maxInventoryUnit) {
+      return `Implausible ${field}`;
+    }
+  }
+
+  // Kâr tutarlılığı: total_profit hiç sıfırlanmaz; daily/weekly onun bir alt kümesidir.
+  // Dolayısıyla total_profit >= daily_profit ve total_profit >= weekly_profit olmalı.
+  const profitEpsilon = 1;
+  if (stats.daily_profit > stats.total_profit + profitEpsilon ||
+      stats.weekly_profit > stats.total_profit + profitEpsilon) {
+    return "Invalid profit consistency";
+  }
+
   const ownedShopKeys = new Set<string>();
   for (const shop of body.owned_shops) {
     const rule = SHOP_RULES[shop.shop_key as keyof typeof SHOP_RULES];
@@ -293,6 +368,53 @@ function validateSaveRequest(body: SaveRequest): string | null {
       return `Duplicate lifestyle item: ${item.item_name}`;
     }
     lifestyleNames.add(item.item_name);
+  }
+
+  return null;
+}
+
+type ExistingStats = {
+  shop_name: string | null;
+  total_profit: number | null;
+  updated_at: string | null;
+  save_revision: number | null;
+};
+
+// deno-lint-ignore no-explicit-any
+async function fetchExistingStats(
+  supabase: any,
+  userId: string,
+): Promise<ExistingStats | null> {
+  const { data, error } = await supabase
+    .from("player_stats")
+    .select("shop_name, total_profit, updated_at, save_revision")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  // Yeni oyuncu (kayıt yok) veya okuma hatası → kontrolleri atla (bloke etme).
+  if (error || !data) {
+    return null;
+  }
+
+  return data as ExistingStats;
+}
+
+function validateProfitDelta(
+  prev: ExistingStats | null,
+  stats: SaveRequest["stats"],
+): string | null {
+  if (!prev) {
+    return null;
+  }
+
+  const prevProfit = Number(prev.total_profit ?? 0);
+  const prevTime = prev.updated_at ? new Date(prev.updated_at).getTime() : Date.now();
+  const elapsedSec = Math.max(0, (Date.now() - prevTime) / 1000);
+  const maxGain = elapsedSec * LIMITS.maxProfitPerSecond + LIMITS.profitBurstBuffer;
+
+  // Not: total_profit reset (resetGame) ile düşebilir; azalışlar reddedilmez.
+  if (stats.total_profit - prevProfit > maxGain) {
+    return "Implausible profit increase";
   }
 
   return null;
