@@ -87,6 +87,7 @@ class AdManager: NSObject, ObservableObject {
                 }
                 self.rewardedAd = ad
                 self.rewardedAd?.fullScreenContentDelegate = self as FullScreenContentDelegate
+                self.logLoadedAdNetwork(ad)
                 self.loadedAt = Date()
                 self.retryAttempt = 0
                 self.loadState = .ready
@@ -165,6 +166,11 @@ class AdManager: NSObject, ObservableObject {
         if loadState != .cooldown {
             loadState = .idle
         }
+    }
+
+    private func logLoadedAdNetwork(_ ad: RewardedAd?) {
+        let networkName = ad?.responseInfo.loadedAdNetworkResponseInfo?.adNetworkClassName ?? "unknown"
+        print("[AdManager] Rewarded ad loaded via: \(networkName)")
     }
 }
 

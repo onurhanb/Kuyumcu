@@ -212,13 +212,13 @@ class GameState: ObservableObject {
         guard profit > 0 else { return 0 }
         switch profit {
         case ...1_000_000:
-            return 0.10
-        case ...5_000_000:
             return 0.18
+        case ...5_000_000:
+            return 0.24
         case ...10_000_000:
-            return 0.25
-        default:
             return 0.30
+        default:
+            return 0.36
         }
     }
 
@@ -250,7 +250,7 @@ class GameState: ObservableObject {
         var cal = Calendar(identifier: .gregorian)
         cal.timeZone = TimeZone(identifier: "Europe/Istanbul")!
         let claimDay = Self.istanbulGameDayStart(of: last)
-        let todayDay = Self.istanbulGameDayStart(of: Date())
+        let todayDay = Self.istanbulGameDayStart(of: ServerClockService.shared.now)
         return cal.dateComponents([.day], from: claimDay, to: todayDay).day ?? Int.max
     }
 
@@ -266,6 +266,7 @@ class GameState: ObservableObject {
     func claimDailyReward() {
         syncProfitPeriodsIfNeeded()
         guard !dailyRewardClaimedToday else { return }
+        let now = ServerClockService.shared.now
         let day = dailyRewardAvailableDay
         switch Self.dailyRewardKind(for: day) {
         case .cash(let reward):
@@ -277,11 +278,12 @@ class GameState: ObservableObject {
             spinRightsRemaining += max(0, count)
         }
         dailyRewardDay = day
-        dailyRewardClaimedAt = Date()
+        dailyRewardClaimedAt = now
         persistChanges()
     }
 
-    func syncEntryRightsIfNeeded(at date: Date = Date()) {
+    func syncEntryRightsIfNeeded(at date: Date? = nil) {
+        let date = date ?? ServerClockService.shared.now
         if let lastRefreshedAt = entryRightsRefreshedAt,
            Self.isSameGameDay(lastRefreshedAt, date) {
             entryRightsRemaining = min(max(entryRightsRemaining, 0), 3)
@@ -311,7 +313,8 @@ class GameState: ObservableObject {
     }
 
     @discardableResult
-    func consumeEntryRightAndEnterShop(_ shop: Shop, at date: Date = Date()) -> Bool {
+    func consumeEntryRightAndEnterShop(_ shop: Shop, at date: Date? = nil) -> Bool {
+        let date = date ?? ServerClockService.shared.now
         syncEntryRightsIfNeeded(at: date)
         guard entryRightsRemaining > 0 else { return false }
 
@@ -321,7 +324,8 @@ class GameState: ObservableObject {
         return true
     }
 
-    func refreshEntryRightsFromAd(at date: Date = Date()) {
+    func refreshEntryRightsFromAd(at date: Date? = nil) {
+        let date = date ?? ServerClockService.shared.now
         entryRightsRemaining = 3
         entryRightsRefreshedAt = date
         persistChanges()
@@ -440,10 +444,11 @@ class GameState: ObservableObject {
 
     @discardableResult
     func syncProfitPeriodsIfNeeded(
-        at date: Date = Date(),
+        at date: Date? = nil,
         persistsChanges: Bool = false,
         syncsCloud: Bool = false
     ) -> Bool {
+        let date = date ?? ServerClockService.shared.now
         if let profitDayAnchorAt {
             let dayDelta = Self.gameDayDelta(from: profitDayAnchorAt, to: date)
             guard dayDelta > 0 else { return false }
@@ -528,7 +533,7 @@ class GameState: ObservableObject {
     }
 
     var passiveIncomeAvailable: Double {
-        passiveIncomeAvailable(at: Date())
+        passiveIncomeAvailable(at: ServerClockService.shared.now)
     }
 
     var passiveIncomePerSecond: Double {
@@ -544,7 +549,8 @@ class GameState: ObservableObject {
         return passiveIncomeBalance + elapsed * passiveIncomePerSecond
     }
 
-    func settlePassiveIncome(at date: Date = Date()) {
+    func settlePassiveIncome(at date: Date? = nil) {
+        let date = date ?? ServerClockService.shared.now
         passiveIncomeBalance = passiveIncomeAvailable(at: date)
         passiveIncomeUpdatedAt = date
     }
@@ -591,7 +597,7 @@ class GameState: ObservableObject {
 
     func collectPassiveIncome() {
         syncProfitPeriodsIfNeeded()
-        let now = Date()
+        let now = ServerClockService.shared.now
         let income = passiveIncomeAvailable(at: now)
         guard income > 0 else { return }
         receiveCash(income)
@@ -635,7 +641,7 @@ class GameState: ObservableObject {
         applyDailyTaxIfNeeded()
         currentDay   += 1
         dailyProfit   = 0
-        profitDayAnchorAt = Date()
+        profitDayAnchorAt = ServerClockService.shared.now
         isBargaining                 = false
         if currentDay % 7  == 0 { weeklyProfit   = 0 }
         if currentDay % 30 == 0 { monthlyRevenue  = 0 }
@@ -724,7 +730,7 @@ class GameState: ObservableObject {
         lastTaxChargedDay           = 0
         currentDay        = 1
         passiveIncomeBalance        = 0
-        passiveIncomeUpdatedAt      = Date()
+        passiveIncomeUpdatedAt      = ServerClockService.shared.now
         totalTransactions = 0
         acceptedDeals               = 0
         rejectedDeals               = 0

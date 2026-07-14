@@ -68,6 +68,7 @@ struct KuyumcuApp: App {
             .preferredColorScheme(.dark)
             .task {
                 await appUpdateService.refresh()
+                await ServerClockService.shared.refresh()
                 await consentManager.configureForAdsIfNeeded()
             }
             .onChange(of: authService.session) { _, newSession in
@@ -85,6 +86,7 @@ struct KuyumcuApp: App {
                 if phase == .active {
                     Task {
                         await appUpdateService.refresh()
+                        await ServerClockService.shared.refresh()
                         await SupabaseSaveService.loadRates(into: gameState)
                         await SupabaseSaveService.loadEvents(into: gameState)
                         await pushService.syncSavedTokenIfPossible()
@@ -107,6 +109,8 @@ struct KuyumcuApp: App {
             hasLoadedGameData = true   // çift çağrıyı önle
             isLoadingGameData = true
         }
+
+        await ServerClockService.shared.refresh()
 
         // Önce yerel cache'i yükle. Oyun offline oynanmaz; bu sadece Supabase
         // geçici hata verirse mevcut oyuncuyu yanlışlıkla kurulum ekranına düşürmez.

@@ -54,12 +54,12 @@ Deno.serve(async (_req) => {
 
     const { error: historyError } = await supabase.from("gold_rate_history").upsert({
       snapshot_date: snapshotDate,
-      gram_buy: rates.gramBuy,
-      quarter_buy: rates.quarterBuy,
-      half_buy: rates.halfBuy,
-      full_buy: rates.fullBuy,
-      usd_buy: rates.usdBuy,
-      eur_buy: rates.eurBuy,
+      gram_buy: rates.gramSell,
+      quarter_buy: rates.quarterSell,
+      half_buy: rates.halfSell,
+      full_buy: rates.fullSell,
+      usd_buy: rates.usdSell,
+      eur_buy: rates.eurSell,
       source_name: "truncgil.com",
       updated_at: fetchedAtIso,
     }, { onConflict: "snapshot_date" });

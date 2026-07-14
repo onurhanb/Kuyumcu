@@ -1,4 +1,6 @@
--- 30-day price history for inventory trend chart
+-- 30-day displayed price history for inventory trend chart.
+-- Columns keep their original *_buy names for client compatibility, but values
+-- are written from the same daily sell prices shown on the home screen.
 
 create table if not exists public.gold_rate_history (
   snapshot_date date primary key,

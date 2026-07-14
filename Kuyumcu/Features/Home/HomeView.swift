@@ -260,28 +260,11 @@ struct HomeView: View {
                 // Sol üst sosyal akış
                 VStack {
                     HStack {
-                        Button { showSocialFeed = true } label: {
-                            ZStack {
-                                if UIImage(named: "social_feed_button_icon") != nil {
-                                    Image("social_feed_button_icon")
-                                        .resizable()
-                                        .scaledToFit()
-                                        .frame(width: 56, height: 56)
-                                } else {
-                                    Image(systemName: "bubble.left.and.bubble.right.fill")
-                                        .resizable()
-                                        .scaledToFit()
-                                        .foregroundColor(.gdlGold)
-                                        .padding(10)
-                                        .background(Color.black.opacity(0.45))
-                                        .clipShape(Circle())
-                                        .frame(width: 56, height: 56)
-                                }
-                            }
-                            .frame(width: 56, height: 56)
-                            .shadow(color: .black.opacity(0.28), radius: 10, x: 0, y: 4)
-                        }
-                        .buttonStyle(.plain)
+                        heroActionButton(
+                            assetName: "social_feed_button_icon",
+                            fallbackSystemName: "bubble.left.and.bubble.right.fill",
+                            imageScale: 1.0
+                        ) { showSocialFeed = true }
                         Spacer()
                     }
                     .padding(.horizontal, GDLSpacing.lg)
@@ -294,51 +277,17 @@ struct HomeView: View {
                     HStack {
                         Spacer()
                         VStack(spacing: GDLSpacing.sm) {
-                            Button { showDailyReward = true } label: {
-                                ZStack {
-                                    if UIImage(named: "daily_reward_button_icon") != nil {
-                                        Image("daily_reward_button_icon")
-                                            .resizable()
-                                            .scaledToFit()
-                                            .frame(width: 56, height: 56)
-                                    } else {
-                                        Image(systemName: "gift.fill")
-                                            .resizable()
-                                            .scaledToFit()
-                                            .foregroundColor(.gdlGold)
-                                            .padding(10)
-                                            .background(Color.black.opacity(0.45))
-                                            .clipShape(Circle())
-                                            .frame(width: 56, height: 56)
-                                    }
-                                }
-                                .frame(width: 56, height: 56)
-                                .shadow(color: .black.opacity(0.28), radius: 10, x: 0, y: 4)
-                            }
-                            .buttonStyle(.plain)
+                            heroActionButton(
+                                assetName: "daily_reward_button_icon",
+                                fallbackSystemName: "gift.fill",
+                                imageScale: 0.92
+                            ) { showDailyReward = true }
 
-                            Button { showSpinWheel = true } label: {
-                                ZStack {
-                                    if UIImage(named: "spin_button_icon") != nil {
-                                        Image("spin_button_icon")
-                                            .resizable()
-                                            .scaledToFit()
-                                            .frame(width: 56, height: 56)
-                                    } else {
-                                        Image(systemName: "arrow.trianglehead.2.clockwise.rotate.90.circle.fill")
-                                            .resizable()
-                                            .scaledToFit()
-                                            .foregroundColor(.gdlGold)
-                                            .padding(10)
-                                            .background(Color.black.opacity(0.45))
-                                            .clipShape(Circle())
-                                            .frame(width: 56, height: 56)
-                                    }
-                                }
-                                .frame(width: 56, height: 56)
-                                .shadow(color: .black.opacity(0.28), radius: 10, x: 0, y: 4)
-                            }
-                            .buttonStyle(.plain)
+                            heroActionButton(
+                                assetName: "spin_button_icon",
+                                fallbackSystemName: "arrow.trianglehead.2.clockwise.rotate.90.circle.fill",
+                                imageScale: 1.03
+                            ) { showSpinWheel = true }
                         }
                     }
                     .padding(.horizontal, GDLSpacing.lg)
@@ -394,6 +343,37 @@ struct HomeView: View {
             }
         }
         .gdlOuterSurface(radius: GDLRadius.cardOuterRadius)
+    }
+
+    private func heroActionButton(
+        assetName: String,
+        fallbackSystemName: String,
+        imageScale: CGFloat,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            ZStack {
+                if UIImage(named: assetName) != nil {
+                    Image(assetName)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 56, height: 56)
+                } else {
+                    Image(systemName: fallbackSystemName)
+                        .resizable()
+                        .scaledToFit()
+                        .foregroundColor(.gdlGold)
+                        .padding(10)
+                        .background(Color.black.opacity(0.45))
+                        .clipShape(Circle())
+                        .frame(width: 56, height: 56)
+                }
+            }
+            .scaleEffect(imageScale)
+            .frame(width: 56, height: 56)
+            .shadow(color: .black.opacity(0.28), radius: 10, x: 0, y: 4)
+        }
+        .buttonStyle(.plain)
     }
 
     private func statCell(
@@ -954,6 +934,26 @@ private struct TaxDebtPopupView: View {
     let canPayTax: Bool
     let onPay: () -> Void
 
+    private var taxBreakdown: (profit: Double, rate: Double) {
+        let rate: Double
+        switch taxDebt {
+        case ...180_000:
+            rate = 0.18
+        case ...1_200_000:
+            rate = 0.24
+        case ...3_000_000:
+            rate = 0.30
+        default:
+            rate = 0.36
+        }
+
+        return (profit: taxDebt / rate, rate: rate)
+    }
+
+    private var taxRateText: String {
+        "%\(Int((taxBreakdown.rate * 100).rounded()))"
+    }
+
     var body: some View {
         ZStack {
             Color.black.opacity(0.55)
@@ -964,38 +964,41 @@ private struct TaxDebtPopupView: View {
 
             VStack(spacing: GDLSpacing.md) {
                 VStack(spacing: GDLSpacing.xs) {
-                    Text("Vergi Borcu")
+                    Text("Gün Sonu Vergisi")
                         .font(.gdlTitle())
                         .foregroundColor(.gdlTextPrimary)
-                    Text("Ödemen gereken vergi: \(FormatUtils.tl(taxDebt))")
-                        .font(.gdlBody())
-                        .foregroundColor(.gdlGold)
+                    Text("Dünkü net kârına göre vergi tahakkuk etti. Tezgâha devam etmek için ödemen gerekiyor.")
+                        .font(.gdlCaption())
+                        .foregroundColor(.gdlTextSecondary)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+
                     if canPayTax {
-                        Text("Nakit bakiyen yeterli. Ödeyip tezgaha giriş yapabilirsin.")
+                        Text("Nakit bakiyen yeterli. Vergiyi ödeyip tezgâha devam edebilirsin.")
                             .font(.gdlCaption())
                             .foregroundColor(.gdlTextSecondary)
                             .multilineTextAlignment(.center)
                     } else {
-                        Text("Nakit yetersiz. Envanterinden satış yaparak nakit oluşturup vergini ödeyebilirsin.")
+                        Text("Nakit yetersiz. Envanterden satış yapıp tekrar ödeyebilirsin.")
                             .font(.gdlCaption())
                             .foregroundColor(.gdlTextSecondary)
                             .multilineTextAlignment(.center)
                     }
                 }
 
-                VStack(spacing: GDLSpacing.xs) {
-                    HStack {
-                        Text("Mevcut Nakit")
-                            .font(.gdlCaption())
-                            .foregroundColor(.gdlTextSecondary)
-                        Spacer()
-                        Text(FormatUtils.tl(playerCash))
-                            .font(.system(size: 14, weight: .semibold, design: .rounded))
-                            .foregroundColor(canPayTax ? .gdlPositive : .gdlNegative)
+                VStack(spacing: GDLSpacing.sm) {
+                    VStack(spacing: GDLSpacing.xs) {
+                        taxDetailRow(title: "Kapanan Gün Kârı", value: FormatUtils.tl(taxBreakdown.profit), valueColor: .gdlTextPrimary)
+                        taxDetailRow(title: "Vergi Oranı", value: taxRateText, valueColor: .gdlGold)
+                        taxDetailRow(title: "Vergi Borcu", value: FormatUtils.tl(taxDebt), valueColor: .gdlGold)
+                        taxDetailRow(title: "Mevcut Nakit", value: FormatUtils.tl(playerCash), valueColor: canPayTax ? .gdlPositive : .gdlNegative)
                     }
+                    .padding(GDLSpacing.sm)
+                    .background(Color.gdlCardSecondary.opacity(0.55))
+                    .clipShape(RoundedRectangle(cornerRadius: GDLRadius.sm))
 
                     HStack(spacing: GDLSpacing.sm) {
-                        Button("Tamam") {
+                        Button("Sonra") {
                             isPresented = false
                         }
                         .font(.system(size: 14, weight: .semibold))
@@ -1005,7 +1008,7 @@ private struct TaxDebtPopupView: View {
                         .background(Color.gdlCardSecondary)
                         .clipShape(RoundedRectangle(cornerRadius: GDLRadius.sm))
 
-                        Button("Öde") {
+                        Button("Vergiyi Öde") {
                             onPay()
                         }
                         .font(.system(size: 14, weight: .bold))
@@ -1023,6 +1026,20 @@ private struct TaxDebtPopupView: View {
             .frame(maxWidth: 340)
             .gdlOuterSurface(radius: GDLRadius.shellOuterRadius)
             .padding(.horizontal, GDLSpacing.lg)
+        }
+    }
+
+    private func taxDetailRow(title: String, value: String, valueColor: Color) -> some View {
+        HStack(spacing: GDLSpacing.sm) {
+            Text(title)
+                .font(.gdlCaption())
+                .foregroundColor(.gdlTextSecondary)
+            Spacer(minLength: GDLSpacing.sm)
+            Text(value)
+                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                .foregroundColor(valueColor)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
         }
     }
 }

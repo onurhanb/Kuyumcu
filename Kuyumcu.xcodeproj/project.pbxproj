@@ -10,6 +10,7 @@
 		B58216632FBBD9C300AE1D23 /* Auth in Frameworks */ = {isa = PBXBuildFile; productRef = B58216622FBBD9C300AE1D23 /* Auth */; };
 		B58216652FBBD9C300AE1D23 /* PostgREST in Frameworks */ = {isa = PBXBuildFile; productRef = B58216642FBBD9C300AE1D23 /* PostgREST */; };
 		B58216692FBBDE1300AE1D23 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = B58216682FBBDE1300AE1D23 /* Supabase */; };
+		B5F219A52FBC04010002329A /* AppLovinAdapterTarget in Frameworks */ = {isa = PBXBuildFile; productRef = B5F219A42FBC04010002329A /* AppLovinAdapterTarget */; };
 		B5F2199F2FBBEFDD0002329A /* GoogleMobileAds in Frameworks */ = {isa = PBXBuildFile; productRef = B5F2199E2FBBEFDD0002329A /* GoogleMobileAds */; };
 /* End PBXBuildFile section */
 
@@ -44,6 +45,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				B5F2199F2FBBEFDD0002329A /* GoogleMobileAds in Frameworks */,
+				B5F219A52FBC04010002329A /* AppLovinAdapterTarget in Frameworks */,
 				B58216652FBBD9C300AE1D23 /* PostgREST in Frameworks */,
 				B58216632FBBD9C300AE1D23 /* Auth in Frameworks */,
 				B58216692FBBDE1300AE1D23 /* Supabase in Frameworks */,
@@ -101,6 +103,7 @@
 				B58216642FBBD9C300AE1D23 /* PostgREST */,
 				B58216682FBBDE1300AE1D23 /* Supabase */,
 				B5F2199E2FBBEFDD0002329A /* GoogleMobileAds */,
+				B5F219A42FBC04010002329A /* AppLovinAdapterTarget */,
 			);
 			productName = Kuyumcu;
 			productReference = B5A690352FB6452C00CB6248 /* Kuyumcu.app */;
@@ -133,6 +136,7 @@
 			packageReferences = (
 				B58216612FBBD9C300AE1D23 /* XCRemoteSwiftPackageReference "supabase-swift" */,
 				B5F2199D2FBBEFDD0002329A /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */,
+				B5F219A32FBC04010002329A /* XCRemoteSwiftPackageReference "googleads-mobile-ios-mediation-applovin" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = B5A690362FB6452C00CB6248 /* Products */;
@@ -292,7 +296,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Kuyumcu/Kuyumcu.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 7;
+				CURRENT_PROJECT_VERSION = 8;
 				DEVELOPMENT_TEAM = 5GF2LLXRGZ;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -308,7 +312,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.7;
+				MARKETING_VERSION = 1.8;
 				PRODUCT_BUNDLE_IDENTIFIER = com.onurhan.kuyumcu.Kuyumcu;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -333,7 +337,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Kuyumcu/Kuyumcu.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 7;
+				CURRENT_PROJECT_VERSION = 8;
 				DEVELOPMENT_TEAM = 5GF2LLXRGZ;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -349,7 +353,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.7;
+				MARKETING_VERSION = 1.8;
 				PRODUCT_BUNDLE_IDENTIFIER = com.onurhan.kuyumcu.Kuyumcu;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -406,6 +410,14 @@
 				minimumVersion = 13.4.0;
 			};
 		};
+		B5F219A32FBC04010002329A /* XCRemoteSwiftPackageReference "googleads-mobile-ios-mediation-applovin" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/googleads/googleads-mobile-ios-mediation-applovin.git";
+			requirement = {
+				kind = exactVersion;
+				version = 13.6.300;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -428,6 +440,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = B5F2199D2FBBEFDD0002329A /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */;
 			productName = GoogleMobileAds;
+		};
+		B5F219A42FBC04010002329A /* AppLovinAdapterTarget */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B5F219A32FBC04010002329A /* XCRemoteSwiftPackageReference "googleads-mobile-ios-mediation-applovin" */;
+			productName = AppLovinAdapterTarget;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

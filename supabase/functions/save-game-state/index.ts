@@ -253,7 +253,7 @@ function validateSaveRequest(body: SaveRequest, existingStats: ExistingStats | n
     }
   }
 
-  const numericFields: Array<[string, number]> = [
+  const nonNegativeNumericFields: Array<[string, number]> = [
     ["player_cash", stats.player_cash],
     ["inventory_usd", stats.inventory_usd],
     ["inventory_eur", stats.inventory_eur],
@@ -263,10 +263,6 @@ function validateSaveRequest(body: SaveRequest, existingStats: ExistingStats | n
     ["inventory_full", stats.inventory_full],
     ["entry_rights_remaining", stats.entry_rights_remaining],
     ["spin_rights_remaining", stats.spin_rights_remaining],
-    ["total_profit", stats.total_profit],
-    ["daily_profit", stats.daily_profit],
-    ["weekly_profit", stats.weekly_profit],
-    ["monthly_revenue", stats.monthly_revenue],
     ["tax_debt", stats.tax_debt],
     ["last_tax_charged_day", stats.last_tax_charged_day],
     ["current_day", stats.current_day],
@@ -280,8 +276,21 @@ function validateSaveRequest(body: SaveRequest, existingStats: ExistingStats | n
     ["save_revision", stats.save_revision],
   ];
 
-  for (const [field, value] of numericFields) {
+  for (const [field, value] of nonNegativeNumericFields) {
     if (!Number.isFinite(value) || value < 0) {
+      return `Invalid numeric field: ${field}`;
+    }
+  }
+
+  const signedNumericFields: Array<[string, number]> = [
+    ["total_profit", stats.total_profit],
+    ["daily_profit", stats.daily_profit],
+    ["weekly_profit", stats.weekly_profit],
+    ["monthly_revenue", stats.monthly_revenue],
+  ];
+
+  for (const [field, value] of signedNumericFields) {
+    if (!Number.isFinite(value)) {
       return `Invalid numeric field: ${field}`;
     }
   }
@@ -327,14 +336,6 @@ function validateSaveRequest(body: SaveRequest, existingStats: ExistingStats | n
     if (value > LIMITS.maxInventoryUnit) {
       return `Implausible ${field}`;
     }
-  }
-
-  // Kâr tutarlılığı: total_profit hiç sıfırlanmaz; daily/weekly onun bir alt kümesidir.
-  // Dolayısıyla total_profit >= daily_profit ve total_profit >= weekly_profit olmalı.
-  const profitEpsilon = 1;
-  if (stats.daily_profit > stats.total_profit + profitEpsilon ||
-      stats.weekly_profit > stats.total_profit + profitEpsilon) {
-    return "Invalid profit consistency";
   }
 
   const ownedShopKeys = new Set<string>();

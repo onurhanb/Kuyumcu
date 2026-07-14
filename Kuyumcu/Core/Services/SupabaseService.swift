@@ -126,6 +126,66 @@ enum AuthServiceError: LocalizedError {
     }
 }
 
+// MARK: - Server Clock
+
+private struct ServerClockResponse: Decodable {
+    let serverTime: String
+
+    enum CodingKeys: String, CodingKey {
+        case serverTime = "server_time"
+    }
+}
+
+@MainActor
+final class ServerClockService: ObservableObject {
+    static let shared = ServerClockService()
+
+    @Published private(set) var lastSyncError: String?
+    @Published private(set) var syncedAt: Date?
+
+    private var serverTimeAtSync: Date?
+    private var uptimeAtSync: TimeInterval?
+
+    private init() {}
+
+    var now: Date {
+        guard let serverTimeAtSync, let uptimeAtSync else {
+            return Date()
+        }
+
+        let elapsed = max(0, ProcessInfo.processInfo.systemUptime - uptimeAtSync)
+        return serverTimeAtSync.addingTimeInterval(elapsed)
+    }
+
+    func refresh() async {
+        do {
+            let response: ServerClockResponse = try await supabase.functions.invoke("server-clock")
+            guard let serverDate = Self.parseISODate(response.serverTime) else {
+                lastSyncError = "Sunucu saati okunamadı."
+                return
+            }
+
+            serverTimeAtSync = serverDate
+            uptimeAtSync = ProcessInfo.processInfo.systemUptime
+            syncedAt = Date()
+            lastSyncError = nil
+        } catch {
+            lastSyncError = error.localizedDescription
+            print("[ServerClock] sunucu saati alınamadı:", error.localizedDescription)
+        }
+    }
+
+    private static func parseISODate(_ raw: String) -> Date? {
+        let fractionalFormatter = ISO8601DateFormatter()
+        fractionalFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = fractionalFormatter.date(from: raw) {
+            return date
+        }
+
+        return ISO8601DateFormatter().date(from: raw)
+    }
+}
+
 // MARK: - Nonce Helpers (Apple Sign In güvenliği için)
 
 func generateRawNonce(length: Int = 32) -> String {
